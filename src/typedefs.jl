@@ -26,7 +26,9 @@ function WalkData(A::Matrix{Int},
     @info "done, $(length(circuits)) circuits"
 
     active_walls = Dict([(c, MixedCellNode[]) for c in circuits])
-    compute_active_walls_children!(initial_mixed_cell_tree, active_walls)
+    for m in AbstractTrees.PreOrderDFS(initial_mixed_cell_tree)
+        compute_active_walls_children!(m, active_walls)
+    end
 
     return WalkData(A_ext, initial_mixed_cell_tree,
                     circuits, active_walls)
