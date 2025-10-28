@@ -36,3 +36,38 @@ end
 function rank(M::MCI, I)
     return rank(matrix(QQ, M.V[:, I]))
 end
+
+# first_intersection(p0, p1, hyplanes)
+
+# given two points p0, p1 and hyperplanes hyplanes = [ ([a1, a2, ... , an]), ... , )
+# return the hyperplane that p0 + t(p1 - p0), t = [0,1], intersects the first, the value of t on this intersection 
+# and the point of the intersection 
+    
+function first_intersection(p0, p1, hyplanes)
+
+    d = p1 - p0
+
+    best_t = Inf
+    best_i = nothing
+
+    for (i, a) in enumerate(hyplanes)
+        denom = dot(a, d)
+        if abs(denom) < 1e-12
+            error("Path is not generic enought!")
+        end
+        # t = (-a p0) / (a (p1 - p0))
+        t = -(dot(a, p0)) / denom
+        if 0 <= t <= 1 && t < best_t
+            best_t = t
+            best_i = i
+        end
+    end
+
+    if isnothing(best_i)
+        @info "no intersection with given hyperplanes"
+        return (nothing, nothing, nothing)
+    else
+        x = p0 + best_t * d
+        return (best_i, best_t, x)
+    end
+end
