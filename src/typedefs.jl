@@ -3,42 +3,64 @@ struct SparseVec{C}
     inds::Vector{Int}
 end
 
+struct MCI
+    V::Matrix{QQFieldElem}
+    A_ext::Matrix{Int64}
+end
+
 struct WalkData
-    A_ext::Matrix{Int}
+    A_ext::Matrix{Int64}
 
     mixed_cell_tree::MixedCellNode
 
-    circuit_and_walls::Dict{SparseVec{QQFieldElem}, Vector{MixedCellNode}}
+    walls::Dict{Vector{QQFieldElem}, Vector{MixedCellNode}}
 end
 
 function WalkData(A::Matrix{Int},
-                  initial_mixed_cell_tree::MixedCellNode)
+                  initial_mixed_cell::Vector{Vector{Int}})
 
     A_ext = vcat(A, ones(Int, size(A, 2)))
 
-    @info "computing circuits"
+    # compute affine circuits of A
+    @info "computing affine circuits"
     circuit_indices = circuits(matroid_from_matrix_columns(A_ext))
     circuits = Vector{QQFieldElem}[]
     for c in circuits 
         K = kernel(matrix(QQ, A_ext[:, c], side = :right))
         push!(circuits, SparseVec(K[:, 1], c))
     end
-    @info "done, $(length(circuits)) circuits"
+    @info "done, $(length(circuits)) affine circuits"
 
-    active_walls = Dict([(c, MixedCellNode[]) for c in circuits])
-    for m in AbstractTrees.PreOrderDFS(initial_mixed_cell_tree)
-        compute_active_walls_children!(m, active_walls)
+    # set up tree encoding initial mixed cell
+    root = MixedCellNode(Int[], collect(1:size(A, 2)), circuits,
+                         collect(1:length(circuits)), MixedCellNode[])
+    node = root
+    for S in initial_mixed_cell
+        new_circuit_indices = filter(i -> iszero(sum(subvec(circuits[i], S))),
+                                     node.circuit_indices)
+        new_node = MixedCellNode(S, setdiff(node.A_remaining, S),
+                                 circuits, new_circuit_indices, MixedCellNode[])
+        node.children = [new_node]
+        node = new_node
     end
 
-    return WalkData(A_ext, initial_mixed_cell_tree,
-                    circuits, active_walls)
+    # compute set of active wall at initial mixed cell
+    walls = Dict{Vector{QQFieldElem}, Vector{MixedCellNode}}()
+    for m in AbstractTrees.PreOrderDFS(root)
+        compute_active_walls_children!(m, walls)
+    end
+
+    return WalkData(A_ext, root, walls)
 end
 
-struct MixedCellNode 
+mutable struct MixedCellNode 
     S::Vector{Int} # root always with empty S
-    A_indices::Vector{Int} # indices into A corresponding to localization at S and its parents
+
+    A_remaining::Vector{Int} # indices corresponding to support of localization at S and its parents
+    circuits::Vector{SparseVec{QQFieldElem}}
+    circuit_indices::Vector{Int} # indices of circuits which give circuits of localization at S and its parents
+    
     children::Vector{MixedCellNode}
-    active_walls::Vector{Int}
 end
 
 AbstractTrees.children(m::MixedCellNode) = m.children
