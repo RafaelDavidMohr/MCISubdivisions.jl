@@ -33,13 +33,15 @@ function WalkData(A::Matrix{Int},
 
     # set up tree encoding initial mixed cell
     root = MixedCellNode(Int[], collect(1:size(A, 2)), circuits,
-                         collect(1:length(circuits)), MixedCellNode[])
+                         collect(1:length(circuits)),
+                         nothing, MixedCellNode[])
     node = root
     for S in initial_mixed_cell
         new_circuit_indices = filter(i -> iszero(sum(subvec(circuits[i], S))),
                                      node.circuit_indices)
         new_node = MixedCellNode(S, setdiff(node.A_remaining, S),
-                                 circuits, new_circuit_indices, MixedCellNode[])
+                                 circuits, new_circuit_indices,
+                                 node, MixedCellNode[])
         node.children = [new_node]
         node = new_node
     end
@@ -60,9 +62,11 @@ mutable struct MixedCellNode
     circuits::Vector{SparseVec{QQFieldElem}}
     circuit_indices::Vector{Int} # indices of circuits which give circuits of localization at S and its parents
     
+    parent::Union{Nothing, MixedCellNode}
     children::Vector{MixedCellNode}
 end
 
 AbstractTrees.children(m::MixedCellNode) = m.children
 AbstractTrees.childrentype(::Type{<:MixedCellNode}) = Vector{MixedCellNode}
 AbstractTrees.ChildIndexing(::Type{<:MixedCellNode}) = AbstractTrees.IndexedChildren()
+AbstractTrees.ParentLinks(::Type{<:MixedCellNode}) = AbstractTrees.StoredParents()
