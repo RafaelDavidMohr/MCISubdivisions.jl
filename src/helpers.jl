@@ -33,8 +33,17 @@ function is_affinely_independent(A_ext::Matrix{Int64})
     return rank(matrix(QQ, A_ext)) == size(A, 2)
 end
 
-function rank(M::MCI, I)
-    return rank(matrix(QQ, M.V[:, I]))
+# --- matrix functions --- #
+
+function reduce_mod_rand_prime(V::Matrix{QQFieldElem})
+    p = Hecke.rand_bits_prime(ZZ, 31)
+    F = GF(p)
+    return F, [GF(numerator(x)) * GF(denominator(x))^(-1) for x in V]
+end
+
+function rank(V::Matrix{QQFieldElem}, I)
+    F, Vp = reduce_mod_rand_prime(V[:, I])
+    return rank(matrix(F, Vp))
 end
 
 # first_intersection(p0, p1, hyplanes)

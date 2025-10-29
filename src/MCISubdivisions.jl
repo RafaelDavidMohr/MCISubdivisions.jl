@@ -38,7 +38,8 @@ end
 
 # --- Mixed cell checking/computation --- #
 
-# this should work for general d, assuming that w is a tropical root
+# this should work for general d, assuming that w is a tropical root?
+# todo: optimize with floating point/finite field computations
 function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
                                  w::Vector{QQFieldElem})
 
@@ -68,11 +69,28 @@ function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
 end
 
 function is_partial_mixed_cell(M::MCI, parent::MixedCellNode, S::Vector{Int})
-    A_length = size(M.A_ext, 2)
-    parent_ms_indices = setdiff(1:A_length, parent.A_remaining)
 
-    # to finish
-    return 
+
+    ancestor_cell_indices = Vector{Int}[]
+    node = parent
+    while !isnothing(node)
+        pushfirst!(ancestor_cell_indices, node.S)
+        node = node.parent
+    end
+
+    # check affine independence
+    n = size(M.V, 1)
+    expected_dimension = sum((length).(ancestor_cell_indices)) - length(ancestor_cell_indices)
+    expected_dimension += length(S) - 1
+    rank(M.A_ext[:, vcat(ancestor_cell_indices..., S)]) - 1 != expected_dimension && return false
+
+    # check rank condition on matroid
+    V_S = M.V[:, vcat(S, ancestor_cell_indices...)]
+    Vp_S = reduce_mod_rand_prime(V_submatrix)
+    Rp_S = reduced_echelon_form(Vp_S)
+    any(i -> iszero(Rp_S[i, i]) || iszero(Rp_S[i, length(S)]), 1:length(S)) && return false
+
+    return true
 end
 
 end # module MCISubdivisions
