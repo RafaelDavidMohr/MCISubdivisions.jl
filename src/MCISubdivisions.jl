@@ -39,7 +39,6 @@ end
 # --- Mixed cell checking/computation --- #
 
 # this should work for general d, assuming that w is a tropical root?
-# todo: optimize with floating point/finite field computations
 function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
                                  w::Vector{QQFieldElem})
 
@@ -70,7 +69,6 @@ end
 
 function is_partial_mixed_cell(M::MCI, parent::MixedCellNode, S::Vector{Int})
 
-
     ancestor_cell_indices = Vector{Int}[]
     node = parent
     while !isnothing(node)
@@ -86,9 +84,8 @@ function is_partial_mixed_cell(M::MCI, parent::MixedCellNode, S::Vector{Int})
 
     # check rank condition on matroid
     V_S = M.V[:, vcat(S, ancestor_cell_indices...)]
-    Vp_S = reduce_mod_rand_prime(V_submatrix)
-    Rp_S = reduced_echelon_form(Vp_S)
-    any(i -> iszero(Rp_S[i, i]) || iszero(Rp_S[i, length(S)]), 1:length(S)) && return false
+    R_S = reduced_echelon_form(V_S)
+    any(i -> iszero(R_S[i, i]) || iszero(R_S[i, length(S)]), 1:length(S)) && return false
 
     return true
 end

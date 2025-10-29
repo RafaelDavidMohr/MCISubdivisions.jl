@@ -4,7 +4,7 @@ struct SparseVec{C}
 end
 
 struct MCI
-    V::Matrix{QQFieldElem}
+    V::Matrix{FqFieldElem} # stored over random finite field to speed up computations
     A_ext::Matrix{Int64}
 end
 
