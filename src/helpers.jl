@@ -41,6 +41,12 @@ function reduce_mod_rand_prime(V::Matrix{QQFieldElem})
     return F, [F(numerator(x)) * F(denominator(x))^(-1) for x in V]
 end
 
+function reduce_mod_rand_prime(V::Matrix{Int})
+    p = Hecke.rand_bits_prime(ZZ, 31)
+    F = GF(p)
+    return F, [F(x) for x in V]
+end
+
 function rank(V::Matrix{QQFieldElem}, I)
     F, Vp = reduce_mod_rand_prime(V[:, I])
     return rank(matrix(F, Vp))
