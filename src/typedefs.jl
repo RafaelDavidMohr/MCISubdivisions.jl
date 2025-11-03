@@ -8,6 +8,7 @@ struct MCI
     A_ext::Matrix{Int64}
 
     function MCI(V::Matrix{FqFieldElem}, A::Matrix{Int64})
+        @assert size(V, 2) == size(A, 2) "number of coefficients and monomials does not match."
         A_ext = vcat(A, ones(Int64, 1, size(A, 2)))
         return new(V, A_ext)
     end
@@ -27,6 +28,10 @@ mutable struct MixedCellNode
     
     parent::Union{Nothing, MixedCellNode}
     children::Vector{MixedCellNode}
+end
+
+function Base.show(io::IO, n::MixedCellNode)
+    print(io, "Mixed Cell Node of dimension $(length(n.S) - 1), $(length(n.A_remaining)) support elements")
 end
 
 AbstractTrees.children(m::MixedCellNode) = m.children
@@ -51,10 +56,10 @@ function WalkData(M::MCI,
     @info "computing affine circuits"
     F, A_extF = reduce_mod_rand_prime(A_ext)
     circuit_indices = circuits(matroid_from_matrix_columns(matrix(F, A_extF)))
-    circs = Vector{QQFieldElem}[]
-    for c in circs 
-        K = kernel(matrix(QQ, A_ext[:, c], side = :right))
-        push!(circs, SparseVec(K[:, 1], c))
+    circs = SparseVec{QQFieldElem}[]
+    for c in circuit_indices
+        K = kernel(matrix(QQ, A_ext[:, c]), side = :right)
+        push!(circs, SparseVec(K[:, 1], ))
     end
     @info "done, $(length(circs)) affine circuits"
 

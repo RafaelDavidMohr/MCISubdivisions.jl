@@ -70,25 +70,27 @@ function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
     return result
 end
 
-function is_partial_mixed_cell(M::MCI, parent::MixedCellNode, S::Vector{Int})
+function is_partial_mixed_cell(M::MCI, prnt::MixedCellNode, S::Vector{Int})
 
     ancestor_cell_indices = Vector{Int}[]
-    node = parent
+    node = prnt
     while !isnothing(node)
-        pushfirst!(ancestor_cell_indices, node.S)
+        !isempty(node.S) && pushfirst!(ancestor_cell_indices, node.S)
         node = node.parent
     end
 
     # check affine independence
+    F, A_extF = reduce_mod_rand_prime(M.A_ext)
     n = size(M.V, 1)
     expected_dimension = sum((length).(ancestor_cell_indices)) - length(ancestor_cell_indices)
     expected_dimension += length(S) - 1
-    rank(M.A_ext[:, vcat(ancestor_cell_indices..., S)]) - 1 != expected_dimension && return false
+    Oscar.rank(matrix(F, M.A_ext[:, vcat(ancestor_cell_indices..., S)])) - 1 != expected_dimension && return false
 
     # check rank condition on matroid
+    F = parent(first(M.V))
     V_S = M.V[:, vcat(S, ancestor_cell_indices...)]
-    R_S = reduced_echelon_form(V_S)
-    any(i -> iszero(R_S[i, i]) || iszero(R_S[i, length(S)]), 1:length(S)) && return false
+    R_S = Oscar.echelon_form(matrix(F, V_S))
+    any(i -> iszero(R_S[i, i]) || iszero(R_S[i, length(S)]), 1:(length(S) - 1)) && return false
 
     return true
 end

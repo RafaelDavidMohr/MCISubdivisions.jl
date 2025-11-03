@@ -1,9 +1,9 @@
-function getindex(c::SparseVec, inds...)
+function Base.getindex(c::SparseVec, inds)
     rem = findall(i -> i in inds, c.inds)
-    return SparseVec(cfs[rem], c.inds[rem])
+    return SparseVec(c.cfs[rem], c.inds[rem])
 end
 
-function subvec(c::SparseVec, inds...)
+function subvec(c::SparseVec, inds)
     rem = findall(i -> i in inds, c.inds)
     return view(c.cfs, rem)
 end
@@ -12,10 +12,11 @@ function densify(c::SparseVec{C}, dim::Int) where C
 
     v = zeros(C, dim)
     j = 1
-    for i in 1:n
+    for i in 1:dim
         if i == c.inds[j]
             v[i] = c.cfs[j]
             j += 1
+            j > length(c.cfs) && break
         end
     end
     return v
@@ -45,11 +46,6 @@ function reduce_mod_rand_prime(V::Matrix{Int})
     p = Hecke.rand_bits_prime(ZZ, 31)
     F = GF(p)
     return F, [F(x) for x in V]
-end
-
-function rank(V::Matrix{QQFieldElem}, I)
-    F, Vp = reduce_mod_rand_prime(V[:, I])
-    return rank(matrix(F, Vp))
 end
 
 # first_intersection(p0, p1, hyplanes)
