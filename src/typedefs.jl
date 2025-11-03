@@ -6,14 +6,16 @@ end
 struct MCI
     V::Matrix{FqFieldElem} # stored over random finite field to speed up computations
     A_ext::Matrix{Int64}
+
+    function MCI(V::Matrix{FqFieldElem}, A::Matrix{Int64})
+        A_ext = vcat(A, ones(Int64, 1, size(A, 2)))
+        return new(V, A_ext)
+    end
 end
 
-struct WalkData
-    A_ext::Matrix{Int64}
-
-    mixed_cell_tree::MixedCellNode
-
-    walls::Dict{Vector{QQFieldElem}, Vector{MixedCellNode}}
+function MCI(V::Matrix{QQFieldElem}, A::Matrix{Int64})
+    _, Vp = reduce_mod_rand_prime(V)
+    return MCI(Vp, A)
 end
 
 function WalkData(A::Matrix{Int},
@@ -64,6 +66,14 @@ mutable struct MixedCellNode
     
     parent::Union{Nothing, MixedCellNode}
     children::Vector{MixedCellNode}
+end
+
+struct WalkData
+    A_ext::Matrix{Int64}
+
+    mixed_cell_tree::MixedCellNode
+
+    walls::Dict{Vector{QQFieldElem}, Vector{MixedCellNode}}
 end
 
 AbstractTrees.children(m::MixedCellNode) = m.children

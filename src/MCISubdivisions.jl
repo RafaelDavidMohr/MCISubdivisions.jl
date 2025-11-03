@@ -48,18 +48,21 @@ function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
     n = size(M.A_ext, 1) - 1
     s = sort(1:A_card, by = i -> dot(w, M.A_ext[1:n, i]) + d[i], rev = true)
 
-    d = dot(w, M.A_ext[1:n, first(s)]) + d[first(s)]
+    deg = dot(w, M.A_ext[1:n, first(s)]) + d[first(s)]
     codim = 0
     Sj = Int[]
 
     i = 1
     while codim < n
-        if dot(w, M.A_ext[1:n, s[i]]) + d[s[i]] == d
+        if i <= A_card && dot(w, M.A_ext[1:n, s[i]]) + d[s[i]] == deg
             push!(Sj, s[i])
         else
             push!(result, copy(Sj))
             codim += length(Sj) - 1
             Sj = Int[]
+            if i < A_card
+                deg = dot(w, M.A_ext[1:n, s[i+1]]) + d[s[i+1]]
+            end
         end
         i += 1
     end

@@ -21,7 +21,7 @@ function densify(c::SparseVec{C}, dim::Int) where C
     return v
 end
 
-function add_to_dict!(d::Dict{T, Vector{S}}, k::T, v::S)
+function add_to_dict!(d::Dict{T, Vector{S}}, k::T, v::S) where {T, S}
     if haskey(d, k)
         push!(d[k], v)
     else
@@ -38,7 +38,7 @@ end
 function reduce_mod_rand_prime(V::Matrix{QQFieldElem})
     p = Hecke.rand_bits_prime(ZZ, 31)
     F = GF(p)
-    return F, [GF(numerator(x)) * GF(denominator(x))^(-1) for x in V]
+    return F, [F(numerator(x)) * F(denominator(x))^(-1) for x in V]
 end
 
 function rank(V::Matrix{QQFieldElem}, I)

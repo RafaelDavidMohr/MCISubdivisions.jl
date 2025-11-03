@@ -2,7 +2,7 @@
 
 julia_version = "1.12.1"
 manifest_format = "2.0"
-project_hash = "a5b580c3c37c4598e91548ca4f67cdb0cc997f1b"
+project_hash = "d4e5c1d76955c5405fbfd1cd5b2169e683066c7c"
 
 [[deps.ASL_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -15,12 +15,10 @@ deps = ["LinearAlgebra", "MacroTools", "Preferences", "Random", "RandomExtension
 git-tree-sha1 = "dc5edff637f5e6737128ea226c32fa242ebba3c0"
 uuid = "c3fe647b-3220-5bb0-a1ea-a7954cac585d"
 version = "0.47.3"
+weakdeps = ["Test"]
 
     [deps.AbstractAlgebra.extensions]
     TestExt = "Test"
-
-    [deps.AbstractAlgebra.weakdeps]
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
@@ -90,10 +88,10 @@ uuid = "55939f99-70c6-5e9b-8bb0-5071ed7d61fd"
 version = "1.4.1"
 
 [[deps.DecFP_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "e9a8da19f847bbfed4076071f6fef8665a30d9e5"
+deps = ["Artifacts", "JLLWrappers", "Libdl"]
+git-tree-sha1 = "40e4404a0a267a8e75f5c1ce2cc9b5e2ce1ba268"
 uuid = "47200ebd-12ce-5be5-abb7-8e082af23329"
-version = "2.0.3+1"
+version = "2.0.300+0"
 
 [[deps.Distributed]]
 deps = ["Random", "Serialization", "Sockets"]
@@ -329,9 +327,9 @@ version = "6.3.0+2"
 
 [[deps.Hecke]]
 deps = ["AbstractAlgebra", "Artifacts", "Dates", "Distributed", "FLINT_jll", "LinearAlgebra", "Nemo", "Pkg", "Printf", "Random", "RandomExtensions", "SparseArrays"]
-git-tree-sha1 = "5e3d13060937ebd3e6de63e75a5bec9132f59cd6"
+git-tree-sha1 = "36f563a5a08ca9c5663a00e18ab135193d99bfe6"
 uuid = "3e1990a7-5d81-5526-99ce-9ba3ff248f21"
-version = "0.38.7"
+version = "0.38.8"
 weakdeps = ["GAP", "Polymake"]
 
     [deps.Hecke.extensions]
@@ -461,7 +459,7 @@ uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
 
 [[deps.MCISubdivisions]]
-deps = ["Oscar"]
+deps = ["AbstractTrees", "Oscar"]
 path = "."
 uuid = "4d03f72d-5264-4b0f-ae8a-0a306ea4484e"
 version = "0.1.0"
@@ -533,9 +531,9 @@ version = "6.5.1+0"
 
 [[deps.Nemo]]
 deps = ["AbstractAlgebra", "FLINT_jll", "LinearAlgebra", "Random", "RandomExtensions", "SHA"]
-git-tree-sha1 = "e96d6ac8a79333ee14bb5822d46ae16919d2a4ce"
+git-tree-sha1 = "23895d5462d6019efbc877108ab1182421acf493"
 uuid = "2edaba10-b0f1-5616-af89-8c11ac63239a"
-version = "0.52.2"
+version = "0.52.3"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
@@ -773,6 +771,11 @@ deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 version = "1.10.0"
 
+[[deps.Test]]
+deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
+uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+version = "1.11.0"
+
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
 uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
@@ -848,9 +851,9 @@ version = "5.15.0+0"
 
 [[deps.libcxxwrap_julia_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "a32eb6e089fdcc8d1ca311ce822e3bf71ff095b4"
+git-tree-sha1 = "8b2fd0fe34d810c17fd18fedc028f36875411959"
 uuid = "3eaa8342-bff7-56a5-9981-c04077f7cee7"
-version = "0.14.4+0"
+version = "0.14.5+0"
 
 [[deps.libpolymake_julia_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "FLINT_jll", "JLLWrappers", "Libdl", "TOPCOM_jll", "lib4ti2_jll", "libcxxwrap_julia_jll", "polymake_jll"]

@@ -6,7 +6,9 @@ authors = ["Rafael Mohr <rafaeldavid.mohr@kuleuven.be>"]
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 Oscar = "f1435218-dba5-11e9-1e4d-f1a5fab5fc13"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
 AbstractTrees = "0.4.5"
 Oscar = "1.5.0"
+Test = "1.11.0"
