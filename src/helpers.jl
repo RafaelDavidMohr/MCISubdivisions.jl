@@ -39,13 +39,13 @@ end
 function reduce_mod_rand_prime(V::Matrix{QQFieldElem})
     p = Hecke.rand_bits_prime(ZZ, 31)
     F = GF(p)
-    return F, [F(numerator(x)) * F(denominator(x))^(-1) for x in V]
+    return [F(numerator(x)) * F(denominator(x))^(-1) for x in V]
 end
 
 function reduce_mod_rand_prime(V::Matrix{Int})
     p = Hecke.rand_bits_prime(ZZ, 31)
     F = GF(p)
-    return F, [F(x) for x in V]
+    return [F(x) for x in V]
 end
 
 

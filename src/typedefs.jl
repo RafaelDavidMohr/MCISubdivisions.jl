@@ -1,88 +1,70 @@
+struct MixedCell
+    inds::Vector{Vector{Int}}
+end
+
+Base.length(m::MixedCell) = length(m.inds)
+
+function Base.show(io::IO, ::MIME"text/plain", m::MixedCell)
+    dims = (s -> length(S) - 1).(m.inds)
+    print(io, "Mixed cell of dimension $(dims)")
+end
+
 struct SparseVec{C}
     cfs::Vector{C}
     inds::Vector{Int}
 end
 
+struct Circuit
+    inds::Vector{Int}
+    cfs_modP::Vector{FqFieldElem}
+    cfs_fl::Vector{Float64}
+end
+
+function Base.:(==)(c1::Circuit, c2::Circuit)
+    return c1.inds == c2.inds && c1.cfs_modP == c2.cfs_modP
+end
+
+function Base.hash(c::Circuit, h::UInt)
+    return hash(c.inds, hash(c.cfs_modP, h))
+end
+
 struct MCI
     V::Matrix{FqFieldElem} # stored over random finite field to speed up computations
-    A_ext::Matrix{Int64}
+    A_modP::Matrix{FqFieldElem}
+    A_Fl::Matrix{Float64}
 
-    function MCI(V::Matrix{FqFieldElem}, A::Matrix{Int64})
+    function MCI(V::Matrix{FqFieldElem}, A_modP::Matrix{FqFieldElem}, A_Fl::Matrix{Float64})
         @assert size(V, 2) == size(A, 2) "number of coefficients and monomials does not match."
-        A_ext = vcat(A, ones(Int64, 1, size(A, 2)))
-        return new(V, A_ext)
+        F = base_ring(first(A_modP))
+        A_ext_modP = vcat(A_modP, [one(F) for i in 1:1, j in 1:size(A, 2)])
+        A_ext_Fl = vcat(A_Fl, ones(Float64, 1, size(A, 2)))
+        return new(V, A_ext_modP, A_ext_Fl)
     end
 end
 
 function MCI(V::Matrix{QQFieldElem}, A::Matrix{Int64})
-    _, Vp = reduce_mod_rand_prime(V)
-    return MCI(Vp, A)
-end
-
-mutable struct MixedCellNode 
-    S::Vector{Int} # root always with empty S
-
-    A_remaining::Vector{Int} # indices corresponding to support of localization at S and its parents
-    circuits::Vector{SparseVec{QQFieldElem}}
-    circuit_indices::Vector{Int} # indices of circuits which give circuits of localization at S and its parents
+    Vp = reduce_mod_rand_prime(V)
+    A_modP = reduce_mod_rand_prime(A)
+    A_Fl = (Float64).(A)
     
-    parent::Union{Nothing, MixedCellNode}
-    children::Vector{MixedCellNode}
+    return MCI(Vp, A_modP, A_Fl)
 end
 
-function Base.show(io::IO, n::MixedCellNode)
-    print(io, "Mixed Cell Node of dimension $(length(n.S) - 1), $(length(n.A_remaining)) support elements")
+function ambient_dim(M::MCI)
+    return size(M.A_modP, 1)
 end
-
-AbstractTrees.children(m::MixedCellNode) = m.children
-AbstractTrees.childrentype(::Type{<:MixedCellNode}) = Vector{MixedCellNode}
-AbstractTrees.ChildIndexing(::Type{<:MixedCellNode}) = AbstractTrees.IndexedChildren()
-AbstractTrees.ParentLinks(::Type{<:MixedCellNode}) = AbstractTrees.StoredParents()
 
 struct WalkData
     M::MCI
-
-    mixed_cell_tree::MixedCellNode
-
-    walls::Dict{Vector{QQFieldElem}, Vector{MixedCellNode}}
+    walls::Dict{Circuit, Vector{Tuple{Int, MixedCell}}}
 end
 
 function WalkData(M::MCI,
-                  initial_mixed_cell::Vector{Vector{Int}})
+                  initial_mixed_cells::Vector{MixedCell})
 
-    A_ext = M.A_ext
-
-    # compute affine circuits of A
-    @info "computing affine circuits"
-    F, A_extF = reduce_mod_rand_prime(A_ext)
-    circuit_indices = circuits(matroid_from_matrix_columns(matrix(F, A_extF)))
-    circs = SparseVec{QQFieldElem}[]
-    for c in circuit_indices
-        K = kernel(matrix(QQ, A_ext[:, c]), side = :right)
-        push!(circs, SparseVec(K[:, 1], ))
+    walls = Dict{Circuit, Vector{Tuple{Int, MixedCell}}}
+    for m in initial_mixed_cells
+        compute_active_walls!(m, M, walls)
     end
-    @info "done, $(length(circs)) affine circuits"
-
-    # set up tree encoding initial mixed cell
-    root = MixedCellNode(Int[], collect(1:size(A_ext, 2)), circs,
-                         collect(1:length(circs)),
-                         nothing, MixedCellNode[])
-    node = root
-    for S in initial_mixed_cell
-        new_circuit_indices = filter(i -> iszero(sum(subvec(circs[i], S))),
-                                     node.circuit_indices)
-        new_node = MixedCellNode(S, setdiff(node.A_remaining, S),
-                                 circs, new_circuit_indices,
-                                 node, MixedCellNode[])
-        node.children = [new_node]
-        node = new_node
-    end
-
-    # compute set of active wall at initial mixed cell
-    walls = Dict{Vector{QQFieldElem}, Vector{MixedCellNode}}()
-    for m in AbstractTrees.PreOrderDFS(root)
-        compute_active_walls_children!(m, walls, size(A_ext, 2))
-    end
-
-    return WalkData(M, root, walls)
+    return WalkData(M, walls)
 end
