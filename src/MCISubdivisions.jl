@@ -12,17 +12,17 @@ include("helpers.jl")
 
 function compute_active_walls!(m::MixedCell,
                                M::MCI,
-                               walls::Dict{Circuit, Vector{Tuple{Int, MixedCell}}})
+                               walls::Dict{Circuit, Set{Tuple{Int, MixedCell}}})
 
     k = length(m)
     n = ambient_dim(M)
-    F = base_ring(first(M.A_modP))
+    F = prime_field_A(M)
 
-    caley_config_modP = Matrix{FqFieldElem}(undef, 0, n + k)
-    caley_config_Fl = Matrix{Float64}(undef, 0, n + k)
+    caley_config_modP = Matrix{FqFieldElem}(undef, n + k, 0)
+    caley_config_Fl = Matrix{Float64}(undef, n + k, 0)
 
     remaining_indices = collect(1:size(M.A_modP, 2))
-    shifted_m_indices = Vector{Int}[]
+    shifted_m_indices = Int[]
 
     projection_to_A = Dict{Int, Int}()
 
@@ -36,30 +36,33 @@ function compute_active_walls!(m::MixedCell,
             if j in m.inds[i]
                 push!(m_shift_i, l + end_index)
             end
-            projection_to_A[j + end_index] = l
+            projection_to_A[l + end_index] = j
             caley_config_modP = hcat(caley_config_modP, vcat(M.A_modP[:, j], apd_modP))
             caley_config_Fl = hcat(caley_config_Fl, vcat(M.A_Fl[:, j], apd_Fl))
         end
         end_index += length(remaining_indices)
         setdiff!(remaining_indices, m.inds[i]) # CAREFUL
-        push!(shifted_m_indices, copy(m_shift_i))
+        append!(shifted_m_indices, m_shift_i)
+        empty!(m_shift_i)
     end
 
     # build circuits
     m_index = 1
     shifted_m_index = 1
     for i in 1:size(caley_config_modP, 2)
-        if i == shifted_m_indices[shifted_m_index]
+        if shifted_m_index <= length(shifted_m_indices) && i == shifted_m_indices[shifted_m_index]
             shifted_m_index += 1
             continue
         end
-        if iszero(caley_config_modP[i, n + m_index])
+        if iszero(caley_config_modP[n + m_index, i])
             m_index += 1
         end
         circuit_col_indices = vcat(shifted_m_indices[1:shifted_m_index-1], [i], shifted_m_indices[shifted_m_index:end])
         K_modP = kernel(matrix(F, caley_config_modP[:, circuit_col_indices]), side = :right)
         K_Fl = nullspace(caley_config_Fl[:, circuit_col_indices])
         @assert size(K_modP, 2) == size(K_Fl, 2) == 1 "unexpected dimension in circuit computation"
+        K_modP *= (-K_modP[shifted_m_index, 1]^(-1))
+        K_Fl *= (-K_Fl[shifted_m_index, 1]^(-1))
         c_cfs_modP = [zero(F) for _ in 1:size(M.A_modP, 2)]
         c_cfs_Fl = zeros(Float64, size(M.A_modP, 2))
         for (j, ind) in enumerate(circuit_col_indices)
@@ -79,7 +82,7 @@ function outer_normal_vector(M::MCI, m::MixedCell,
                              d::Vector{QQFieldElem})
 
     n = ambient_dim(M)
-    F = base_ring(first(M.A_modP))
+    F = prime_field_A(M)
     A_modP_lifted = vcat(M.A_modP, (F).(d))
     A_Fl_lifted = vcat(M.A_Fl, (Float64).(d))
 
@@ -109,52 +112,52 @@ function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
 
     result = Vector{Int}[]
 
-    A_card = size(M.A_ext, 2)
-    n = size(M.A_ext, 1) - 1
-    s = sort(1:A_card, by = i -> dot(w, M.A_ext[1:n, i]) + d[i], rev = true)
-    println(s)
+    A_card = size(M.A_modP, 2)
+    n = size(M.A_modP, 1)
+    w_fl = (Float64).(w)
+    d_fl = (Float64).(d)
+    s = sort(1:A_card, by = i -> dot(w_fl, M.A_Fl[:, i]) + d_fl[i], rev = true)
 
-    deg = dot(w, M.A_ext[1:n, first(s)]) + d[first(s)]
+    F = prime_field_A(M)
+    w_modP = (F).(w)
+    d_modP = (F).(d)
+    deg = dot(w_modP, M.A_modP[:, first(s)]) + d_modP[first(s)]
     codim = 0
     Sj = Int[]
 
     i = 1
     while codim < n
-        if i <= A_card && dot(w, M.A_ext[1:n, s[i]]) + d[s[i]] == deg
+        if i <= A_card && dot(w_modP, M.A_modP[:, s[i]]) + d_modP[s[i]] == deg
             push!(Sj, s[i])
         else
             push!(result, copy(Sj))
             codim += length(Sj) - 1
             Sj = Int[]
             if i < A_card
-                deg = dot(w, M.A_ext[1:n, s[i+1]]) + d[s[i+1]]
+                deg = dot(w_modP, M.A_modP[:, s[i+1]]) + d_modP[s[i+1]]
             end
         end
         i += 1
     end
         
-    return result
+    return MixedCell(result)
 end
 
-function is_partial_mixed_cell(M::MCI, prnt::MixedCellNode, S::Vector{Int})
-
-    ancestor_cell_indices = Vector{Int}[]
-    node = prnt
-    while !isnothing(node)
-        !isempty(node.S) && pushfirst!(ancestor_cell_indices, node.S)
-        node = node.parent
-    end
+# checks if m ∪ {S} is a partial mixed cell
+function is_partial_mixed_cell(M::MCI, m::MixedCell, S::Vector{Int})
 
     # check affine independence
-    F, A_extF = reduce_mod_rand_prime(M.A_ext)
-    n = size(M.V, 1)
-    expected_dimension = sum((length).(ancestor_cell_indices)) - length(ancestor_cell_indices)
+    n = ambient_dim(M)
+    expected_dimension = sum((length).(m.inds)) - length(m)
     expected_dimension += length(S) - 1
-    Oscar.rank(matrix(F, M.A_ext[:, vcat(ancestor_cell_indices..., S)])) - 1 != expected_dimension && return false
+    F = prime_field_A(M)
+    mc_inds = vcat(m.inds..., S)
+    ms_support = vcat(M.A_modP[:, mc_inds], [one(F) for _ in 1:1, j in 1:length(mc_inds)])
+    Oscar.rank(matrix(F, ms_support)) - 1 != expected_dimension && return false
 
     # check rank condition on matroid
-    F = parent(first(M.V))
-    V_S = M.V[:, vcat(S, ancestor_cell_indices...)]
+    F = prime_field_V(M)
+    V_S = M.V[:, vcat(S, m.inds...)]
     R_S = Oscar.echelon_form(matrix(F, V_S))
     any(i -> iszero(R_S[i, i]) || iszero(R_S[i, length(S)]), 1:(length(S) - 1)) && return false
 

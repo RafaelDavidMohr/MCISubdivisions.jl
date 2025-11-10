@@ -5,13 +5,8 @@ end
 Base.length(m::MixedCell) = length(m.inds)
 
 function Base.show(io::IO, ::MIME"text/plain", m::MixedCell)
-    dims = (s -> length(S) - 1).(m.inds)
+    dims = (s -> length(s) - 1).(m.inds)
     print(io, "Mixed cell of dimension $(dims)")
-end
-
-struct SparseVec{C}
-    cfs::Vector{C}
-    inds::Vector{Int}
 end
 
 struct Circuit
@@ -34,11 +29,8 @@ struct MCI
     A_Fl::Matrix{Float64}
 
     function MCI(V::Matrix{FqFieldElem}, A_modP::Matrix{FqFieldElem}, A_Fl::Matrix{Float64})
-        @assert size(V, 2) == size(A, 2) "number of coefficients and monomials does not match."
-        F = base_ring(first(A_modP))
-        A_ext_modP = vcat(A_modP, [one(F) for i in 1:1, j in 1:size(A, 2)])
-        A_ext_Fl = vcat(A_Fl, ones(Float64, 1, size(A, 2)))
-        return new(V, A_ext_modP, A_ext_Fl)
+        @assert size(V, 2) == size(A_modP, 2) "number of coefficients and monomials does not match."
+        return new(V, A_modP, A_Fl)
     end
 end
 
@@ -50,19 +42,22 @@ function MCI(V::Matrix{QQFieldElem}, A::Matrix{Int64})
     return MCI(Vp, A_modP, A_Fl)
 end
 
+prime_field_A(M::MCI) = parent(first(M.A_modP))
+prime_field_V(M::MCI) = parent(first(M.V))
+
 function ambient_dim(M::MCI)
     return size(M.A_modP, 1)
 end
 
 struct WalkData
     M::MCI
-    walls::Dict{Circuit, Vector{Tuple{Int, MixedCell}}}
+    walls::Dict{Circuit, Set{Tuple{Int, MixedCell}}}
 end
 
 function WalkData(M::MCI,
                   initial_mixed_cells::Vector{MixedCell})
 
-    walls = Dict{Circuit, Vector{Tuple{Int, MixedCell}}}
+    walls = Dict{Circuit, Set{Tuple{Int, MixedCell}}}()
     for m in initial_mixed_cells
         compute_active_walls!(m, M, walls)
     end
