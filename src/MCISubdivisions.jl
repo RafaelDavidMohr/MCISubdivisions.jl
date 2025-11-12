@@ -108,39 +108,41 @@ end
 
 # this should work for general d, assuming that w is a tropical root?
 function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
-                                 w::Vector{QQFieldElem})
+                                 w::Vector{QQFieldElem},
+                                 partial_ms::MixedCell)
 
     result = Vector{Int}[]
 
     A_card = size(M.A_modP, 2)
-    n = size(M.A_modP, 1)
+    A_loc_indices = findall(i -> all(S -> !(i in S), partial_ms.inds), 1:A_card)
+    n_loc = ambient_dim(M) - codim(partial_ms)
     w_fl = (Float64).(w)
     d_fl = (Float64).(d)
-    s = sort(1:A_card, by = i -> dot(w_fl, M.A_Fl[:, i]) + d_fl[i], rev = true)
+    sort!(A_loc_indices, by = i -> dot(w_fl, M.A_Fl[:, i]) + d_fl[i], rev = true)
 
     F = prime_field_A(M)
     w_modP = (F).(w)
     d_modP = (F).(d)
-    deg = dot(w_modP, M.A_modP[:, first(s)]) + d_modP[first(s)]
-    codim = 0
-    Sj = Int[]
 
-    i = 1
-    while codim < n
-        if i <= A_card && dot(w_modP, M.A_modP[:, s[i]]) + d_modP[s[i]] == deg
-            push!(Sj, s[i])
-        else
-            push!(result, copy(Sj))
-            codim += length(Sj) - 1
-            Sj = Int[]
-            if i < A_card
-                deg = dot(w_modP, M.A_modP[:, s[i+1]]) + d_modP[s[i+1]]
-            end
+    prev_deg = dot(w_modP, M.A_modP[:, first(A_loc_indices)]) + d_modP[first(A_loc_indices)]
+    Sj = Int[]
+    result_codim = 0
+
+    for (j, i) in enumerate(A_loc_indices)
+        result_codim == n_loc && break
+        new_deg = dot(w_modP, M.A_modP[:, i]) + d_modP[i] 
+        if new_deg == prev_deg
+            push!(Sj, i)
         end
-        i += 1
+        if j == length(A_loc_indices) || new_deg != prev_deg
+            result_codim += length(Sj) - 1
+            push!(result, copy(Sj))
+            Sj = [i]
+        end
+        prev_deg = new_deg
     end
-        
-    return MixedCell(result)
+            
+    return MixedCell(vcat(partial_ms.inds, result))
 end
 
 # checks if m ∪ {S} is a partial mixed cell

@@ -3,6 +3,10 @@ struct MixedCell
 end
 
 Base.length(m::MixedCell) = length(m.inds)
+function codim(m::MixedCell)
+    isempty(m.inds) && return 0
+    return sum((s -> length(s) - 1).(m.inds))
+end
 
 function Base.show(io::IO, ::MIME"text/plain", m::MixedCell)
     dims = (s -> length(s) - 1).(m.inds)
