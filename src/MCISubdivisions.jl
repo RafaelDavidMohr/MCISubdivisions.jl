@@ -8,11 +8,23 @@ include("helpers.jl")
 
 # --- Main functions --- #
 
+function walk_homotopy!(w::WalkData, p::HomotopyPath)
+
+    while !is_completed(path)
+        t_int, h_int = first_intersection_with_path!(p, keys(w.walls))
+        isnothing(h_int) && return
+        for (act_index, m_index) in w.walls[h_int] 
+            # to continue
+        end
+    end
+end
+
 # --- Functions related to mixed cell cones --- #
 
 function compute_active_walls!(m::MixedCell,
+                               mindex::Int,
                                M::MCI,
-                               walls::Dict{Circuit, Set{Tuple{Int, MixedCell}}})
+                               walls::Dict{Circuit, Set{Tuple{Int, Int}}})
 
     k = length(m)
     n = ambient_dim(M)
@@ -47,15 +59,15 @@ function compute_active_walls!(m::MixedCell,
     end
 
     # build circuits
-    m_index = 1
+    act_index = 1
     shifted_m_index = 1
     for i in 1:size(caley_config_modP, 2)
         if shifted_m_index <= length(shifted_m_indices) && i == shifted_m_indices[shifted_m_index]
             shifted_m_index += 1
             continue
         end
-        if iszero(caley_config_modP[n + m_index, i])
-            m_index += 1
+        if iszero(caley_config_modP[n + act_index, i])
+            act_index += 1
         end
         circuit_col_indices = vcat(shifted_m_indices[1:shifted_m_index-1], [i], shifted_m_indices[shifted_m_index:end])
         K_modP = kernel(matrix(F, caley_config_modP[:, circuit_col_indices]), side = :right)
@@ -71,13 +83,12 @@ function compute_active_walls!(m::MixedCell,
         end
         c_final_inds = findall(!iszero, c_cfs_modP)
         c = Circuit(c_final_inds, c_cfs_modP[c_final_inds], c_cfs_Fl[c_final_inds])
-        add_to_dict!(walls, c, (m_index, m))
+        add_to_dict!(walls, c, (act_index, mindex))
     end
 end
 
 # --- Mixed cell checking/computation --- #
 
-# optimization: output one floating point, one finite field representation
 function outer_normal_vector(M::MCI, m::MixedCell,
                              d::Vector{QQFieldElem})
 
@@ -106,7 +117,6 @@ function outer_normal_vector(M::MCI, m::MixedCell,
     return K_modP[1, 1:n], K_Fl[1:n, 1]
 end
 
-# this should work for general d, assuming that w is a tropical root?
 function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
                                  w::Vector{QQFieldElem},
                                  partial_ms::MixedCell)

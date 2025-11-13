@@ -1,11 +1,3 @@
-function add_to_dict!(d::Dict{T, Set{S}}, k::T, v::S) where {T, S}
-    if haskey(d, k)
-        push!(d[k], v)
-    else
-        d[k] = Set([v])
-    end
-end
-
 # --- matrix functions --- #
 
 function reduce_mod_rand_prime(V::Matrix{QQFieldElem})
@@ -27,55 +19,45 @@ end
 # return the hyperplane that p0 + t(p1 - p0), t = [0,1], intersects the first, the value of t on this intersection 
 # and the point of the intersection 
     
-function first_intersection(p0::AbstractVector, p1::AbstractVector, hyperplanes::Vector{<:AbstractVector}) 
+function first_intersection(p0::Vector{Float64},
+                            p1::Vector{Float64},
+                            hyperplanes::Vector{Circuit}) 
 
-    d = float(p1) .- float(p0)
-    fp0 = float(p0)
+    d = p1 - p0
 
     best_t = Inf
-    min_t = Inf
-    best_i = nothing
+    best_h = nothing
 
-    for (i, a) in enumerate(hyperplanes)
-
-        a = float(a)
-        denom = dot(a, d)
-        if abs(denom) < 1e-12
-            error("Path is not generic enought!")
-        end
-        # t = (-a p0) / (a (p1 - p0))
-        t = -(dot(a, fp0)) / denom
-        if 0 <= t <= 1 && t < best_t
+    for c in hyperplanes
+        denom = dot(d, c)
+        @assert abs(denom) < 1e-12 "Path not generic enough!"
+        t = -(dot(p0, c)) / denom
+        if 0 < t <= 1 && t < best_t # t = 0 explicitly excluded
             best_t = t
-            best_i = i
+            best_h = c
         end
     end
 
-    if isnothing(best_i)
-        @info "no intersection with given hyperplanes"
-        return nothing
-    else
-        min_t = -(dot(hyperplanes[best_i], p0)) / dot(hyperplanes[best_i], p1 .- p0)
-        x = p0 + min_t * d
-        return (best_i, min_t, x)
-    end
+    return best_t, best_h
 end
 
 # to compute the total length of the given piecewise linear path
-function path_length(points::Vector{<:AbstractVector})
+function path_length(path::HomotopyPath)
+    points = path.points
     total = 0.0
     for i in 1:(length(points)-1)
-        total += norm(points[i+1] .- points[i])
+        total += norm(points[i+1] - points[i])
     end
     return total
 end
 
 # to compute the piecewise linear path on n = size(p0) points
-function piecewice_linear_path(p0::AbstractVector, p1::AbstractVector) 
+function piecewice_linear_path(p0::Vector{QQFieldElem},
+                               p1::Vector{QQFieldElem}) 
 
     n = length(p0)
     eps = 1e-8
-    points = Vector{AbstractVector}()
+    points = Vector{Float64}[]
 
     push!(points, p0)
 
@@ -84,28 +66,51 @@ function piecewice_linear_path(p0::AbstractVector, p1::AbstractVector)
         t = rand()  # random number in [0,1]
         shifts = (2 .* rand(n) .- 1) .* eps #random numbers in [-eps,eps]
         # Next point lies between prev and p1
-        next_point = prev .+ t .* (p1 .- prev) .+ shifts 
+        next_point = prev + t * (p1 - prev) + shifts 
         push!(points, next_point)
         prev = next_point
     end
 
     push!(points, p1)
 
-return points
+    return HomotopyPath(points)
 end
 
 # to compute the point of the first intersection of piecewise linear path with given hyperplanes
-function first_intersection_linear_path(path::Vector{<:AbstractVector}, hyperplanes::Vector{<:AbstractVector}) 
+function first_intersection_with_path!(path::HomotopyPath,
+                                       hyperplanes::AbstractSet{Circuit}) 
 
     n = length(path)
 
-    for i in 1:(n-1)
-        p1, p2 = path[i], path[i+1]
-        result = first_intersection(p1, p2, hyperplanes)
-        if result !== nothing
-            return result
-        end
+    t_int, h_int = Inf, nothing
+    while isnothing(h_int) && !is_completed(path)
+        p1, p2 = path[1], path[2]
+        t_int, h_int = first_intersection(p1, p2, hyperplanes)
+        isnothing(h_int) && popfirst!(path.points)
     end
 
-    return nothing
+    return t_int, h_int
+end
+
+# --- small helpers --- #
+
+function add_to_dict!(d::Dict{T, Set{S}}, k::T, v::S) where {T, S}
+    if haskey(d, k)
+        push!(d[k], v)
+    else
+        d[k] = Set([v])
+    end
+end
+
+# random point on line segment between p1 and p2 
+# with upper bound on parameter t
+function random_path_point(p1::Vector{Float64},
+                           p2::Vector{Float64},
+                           upb_t::Float64)
+
+    denom = ceil(Int, 1000/upb_t)
+    a = rand(1:denom-1)
+    t = a/denom
+    p_fl = (1 - t)*p1 + t*p2
+    return (x -> QQ(rationalize(Int32, p_fl))).(p_fl)
 end

@@ -27,6 +27,19 @@ function Base.hash(c::Circuit, h::UInt)
     return hash(c.inds, hash(c.cfs_modP, h))
 end
 
+function LinearAlgebra.dot(v::Vector{Float64}, c::Circuit)
+    res = 0.0
+    i = 1
+    for j in 1:length(v)
+        i > length(c.inds) && break
+        if j == c.inds[i]
+            res += v[j]*c.cfs_fl[i]
+            i += 1
+        end
+    end
+    return res
+end
+
 struct MCI
     V::Matrix{FqFieldElem} # stored over random finite field to speed up computations
     A_modP::Matrix{FqFieldElem}
@@ -55,15 +68,27 @@ end
 
 struct WalkData
     M::MCI
-    walls::Dict{Circuit, Set{Tuple{Int, MixedCell}}}
+    current_mixed_cells::Vector{MixedCell}
+    current_mc_hashed::Dict{MixedCell, Int}
+    walls::Dict{Circuit, Set{Tuple{Int, Int}}}
 end
 
 function WalkData(M::MCI,
                   initial_mixed_cells::Vector{MixedCell})
 
-    walls = Dict{Circuit, Set{Tuple{Int, MixedCell}}}()
-    for m in initial_mixed_cells
-        compute_active_walls!(m, M, walls)
+    walls = Dict{Circuit, Set{Tuple{Int, Int}}}()
+    current_mc_hashed = Dict{MixedCell, Int}()
+    for (i, m) in enumerate(initial_mixed_cells)
+        current_mc_hashed[m] = i
+        compute_active_walls!(m, i, M, walls)
     end
-    return WalkData(M, walls)
+    return WalkData(M, initial_mixed_cells, current_mc_hashed, walls)
 end
+
+struct HomotopyPath
+    points::Vector{Vector{Float64}}
+end
+
+Base.length(path::HomotopyPath) = length(path.points)
+Base.getindex(path::HomotopyPath, i::Int) = path.points[i]
+is_completed(path::HomotopyPath) = length(path) == 1
