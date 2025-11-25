@@ -96,8 +96,6 @@ end
 
 function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int, sgn::Bool)
 
-    cmpr = x -> sgn ? x > 0 : x < 0
-    
     A_loc, V_loc, rem_inds, ind_map = localize(M.A_modP, M.V, m.inds[1:act_index-1])
 
     inds = if act_index == length(m)
@@ -114,7 +112,7 @@ function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int, sgn::
 
     for S_new in circuits(matr)
         S_new_A_inds = rem_inds[S_new]
-        if cmpr(partial_sum(S_new_A_inds, c)) && is_affine_independent(A_loc, S_new)
+        if partial_sum_sign(S_new_A_inds, c, sgn) && is_affine_independent(A_loc, S_new)
             push!(Ss_new, S_new_A_inds)
         end
     end

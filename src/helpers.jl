@@ -38,14 +38,16 @@ end
 # --- helper for our Circuit data structure --- #
 
 # potentially to optimize
-function partial_sum(inds::Vector{Int}, c::Circuit)
+function partial_sum_sign(inds::Vector{Int}, c::Circuit, sgn::Bool)
     res = 0.0
+    resP = parent(first(c.cfs_modP))(0)
     for (i, ind) in enumerate(c.inds)
         if ind in inds
             res += c.cfs_fl[i]
+            resP += c.cfs_modP[i]
         end
     end
-    return res
+    return resP != 0 && (sgn ? res > 0 : res < 0)
 end
 
 function LinearAlgebra.dot(v::Vector{Float64}, c::Circuit)
