@@ -77,7 +77,7 @@ end
 function first_intersection(p0::Vector{Float64},
                             p1::Vector{Float64},
                             t0::Float64,
-                            hyperplanes::Vector{Circuit}) 
+                            hyperplanes::AbstractSet{Circuit}) 
 
     d = p1 - p0
 
@@ -86,7 +86,7 @@ function first_intersection(p0::Vector{Float64},
 
     for c in hyperplanes
         denom = dot(d, c)
-        @assert abs(denom) < 1e-12 "Path not generic enough!"
+        @assert abs(denom) > 1e-12 "Path not generic enough!"
         t = -(dot(p0, c)) / denom
         if t0 < t <= 1 && t < best_t # t0 explicitly excluded
             best_t = t
@@ -108,8 +108,8 @@ function path_length(path::HomotopyPath)
 end
 
 # to compute the piecewise linear path on n = size(p0) points
-function piecewice_linear_path(p0::Vector{QQFieldElem},
-                               p1::Vector{QQFieldElem}) 
+function piecewice_linear_path(p0::Vector{Float64},
+                               p1::Vector{Float64}) 
 
     n = length(p0) # ambient dimension
     eps = 1e-2

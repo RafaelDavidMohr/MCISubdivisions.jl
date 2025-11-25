@@ -2,6 +2,18 @@ struct MixedCell
     inds::Vector{Vector{Int}}
 end
 
+function Base.:(==)(m1::MixedCell, m2::MixedCell)
+    length(m1.inds) != length(m2.inds) && return false
+    for (i, S) in enumerate(m1.inds)
+        S != m2.inds[i] && return false
+    end
+    return true
+end
+
+function Base.hash(m::MixedCell, h::UInt)
+    return hash(m.inds, h)
+end
+
 Base.length(m::MixedCell) = length(m.inds)
 function codim(m::MixedCell)
     isempty(m.inds) && return 0
@@ -75,11 +87,11 @@ function WalkData(M::MCI,
     return WalkData(M, walls)
 end
 
-struct HomotopyPath
+mutable struct HomotopyPath
     t_curr::Float64 # current position in path: t_curr * points[1] + (1 - t) * points[2]
     points::Vector{Vector{Float64}}
 end
 
 Base.length(path::HomotopyPath) = length(path.points)
 Base.getindex(path::HomotopyPath, i::Int) = path.points[i]
-is_completed(path::HomotopyPath) = length(path) == 1
+is_completed(path::HomotopyPath) = isone(Base.length(path))

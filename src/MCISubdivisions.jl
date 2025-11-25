@@ -10,25 +10,46 @@ include("helpers.jl")
 
 function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
-    F = parent(first(V))
+    F = parent(first(Vp))
     rand_mix = matrix(F, (F).(rand(1:characteristic(F)-1, size(V, 1), size(V, 1))))
-    Vp = rand_mix * Vp
+    Vp = Matrix(rand_mix * matrix(F, Vp))
     wd, path = total_degree_homotopy(A, Vp)
+
+    p1_fl = last(path.points)
+    p1 = (QQ).((rationalize).(p1_fl))
+
     walk_homotopy!(wd, path)
-    return unique!(vcat([(tup -> tup[1]).(wd.walls[c]) for c in keys(wd.walls)]...))
+
+    A_size = size(A, 2)
+    result = Set{MixedCell}()
+    for c in keys(wd.walls)
+        for (m, act_index, sgn) in wd.walls[c]
+            any(S -> any(i -> i > A_size, S), m.inds) && continue
+            push!(result, m)
+        end
+    end
+
+    println(p1)
+    for m in result
+        _, w = outer_normal_vector(wd.M, m, p1)
+        println(m.inds)
+        println((i -> dot(w, wd.M.A_Fl[:, i]) + p1_fl[i]).(1:A_size))
+    end
+    
+    return wd, collect(result)
 end
 
-function walk_homotopy!(w::WalkData, p::HomotopyPath)
+function walk_homotopy!(w::WalkData, path::HomotopyPath)
 
     @info "starting homotopy"
 
     while !is_completed(path)
-        c_int = first_intersection_with_path!(p, keys(w.walls))
+        c_int = first_intersection_with_path!(path, keys(w.walls))
         if isnothing(c_int)
             @info "no intersection left, finished"
             return
         end
-        @info "intersection found, $(length(p.points) - 1) segments remaining"
+        @info "intersection found, $(length(path.points) - 1) segments remaining"
         @info "$(length(w.walls[c_int])) mixed cells to flip"
         walk_wall!(w, c_int)
     end
@@ -40,27 +61,28 @@ function total_degree_homotopy(A::Matrix{Int}, V::Matrix{FqFieldElem})
     @assert !isnothing(zeropos) "Support does not contain origin, consider shifting"
 
     # extended MCI
-    max_deg = max(i -> sum(A[:, i]), 1:A_size)
+    max_deg = maximum(i -> sum(A[:, i]), 1:A_size)
     n = size(A, 1)
     A_ext = copy(A)
     V_ext = copy(V)
     F = parent(first(V))
     for i in 1:n
-        A_ext = hcat(A_ext, [j == i ? 1 : 0 for j in 1:n])
+        A_ext = hcat(A_ext, [j == i ? max_deg : 0 for j in 1:n])
         V_ext = hcat(V_ext, (F).(rand(1:characteristic(F)-1, n)))
     end
     M = MCI(V_ext, A_ext)
 
     # set up path
     p0 = vcat(zeros(Float64, zeropos - 1),
-              [100 * rand()],
+              [10 * rand()],
               zeros(Float64, A_size - zeropos),
-              100 * rand(n))
-    p1 = vcat(100 * rand(A_size), zeros(Float64, n))
+              10 * rand(n))
+    p1 = vcat(10 * rand(A_size),
+              zeros(Float64, n))
     path = piecewice_linear_path(p0, p1)
 
     # initial mixed cell
-    init_mc = MixedCell([zeropos, collect(A_size+1:A_size+1+n)...])
+    init_mc = MixedCell([[zeropos, collect(A_size+1:A_size+1+n-1)...]])
     wd = WalkData(M, [init_mc])
 
     return wd, path
@@ -70,12 +92,13 @@ end
 
 function walk_wall!(wd::WalkData, c::Circuit)
     active_mc_data = wd.walls[c]
-    delete!(wd.walls, c)
+    delete!(wd.walls, c) # TODO HERE: DELETE MIXED CELLS ALSO ELSEWHERE
     cnt = 0
     for (m, act_index, sgn) in active_mc_data
-        new_mixed_cells = mixed_cell_flip(m, c, act_index, sgn)
+        new_mixed_cells = mixed_cell_flip(m, c, wd.M, act_index, sgn)
         cnt += length(new_mixed_cells)
         for new_mc in new_mixed_cells
+            @assert is_partial_mixed_cell(wd.M, new_mc)
             compute_active_walls!(new_mc, wd.M, wd.walls)
         end
     end
@@ -223,8 +246,8 @@ function outer_normal_vector(M::MCI, m::MixedCell,
 
     n = ambient_dim(M)
     F = prime_field_A(M)
-    A_modP_lifted = vcat(M.A_modP, (F).(d))
-    A_Fl_lifted = vcat(M.A_Fl, (Float64).(d))
+    A_modP_lifted = vcat(M.A_modP, transpose((F).(d)))
+    A_Fl_lifted = vcat(M.A_Fl, transpose((Float64).(d)))
 
     eqns_modP = Matrix{FqFieldElem}(undef, n + 1, 0)
     eqns_Fl = Matrix{Float64}(undef, 0, n + 1)
@@ -232,8 +255,8 @@ function outer_normal_vector(M::MCI, m::MixedCell,
         a_modP = A_modP_lifted[:, first(S)]
         a_Fl = A_Fl_lifted[:, first(S)]
         for i in S[2:end]
-            eqns_modP = hcat(eqns, A_modP_lifted[:, i] - a_modP)
-            eqns_Fl = vcat(eqns, transpose(A_Fl_lifted[:, i] - a_Fl))
+            eqns_modP = hcat(eqns_modP, A_modP_lifted[:, i] - a_modP)
+            eqns_Fl = vcat(eqns_Fl, transpose(A_Fl_lifted[:, i] - a_Fl))
         end
     end
 
