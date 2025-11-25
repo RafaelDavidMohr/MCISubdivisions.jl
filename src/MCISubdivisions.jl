@@ -33,18 +33,26 @@ function compute_active_walls!(m::MixedCell,
     caley_config_modP = Matrix{FqFieldElem}(undef, n + k, 0)
     caley_config_Fl = Matrix{Float64}(undef, n + k, 0)
 
-    remaining_indices = collect(1:size(M.A_modP, 2))
     shifted_m_indices = Int[]
 
     projection_to_A = Dict{Int, Int}()
 
     # build cayley configuration
+    # Here: to the ith part of the Cayley configuration we just need to add
+    # the first element of S_i+1. To the last part of the Cayley configuration
+    # we add all the elements that lie outside of S1 u ... u Sk
+    # TODO: this loop can probably be optimized
     end_index = 0
     m_shift_i = Int[]
     for i in 1:k
         apd_modP = [j == i ? one(F) : zero(F) for j in 1:k]
         apd_Fl = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
-        for (l, j) in enumerate(remaining_indices)
+        add_indices = if i < k
+            vcat(m.inds[i], [first(m.inds[i+1])])
+        else
+            vcat(m.inds[i], setdiff(collect(1:size(M.A_modP, 2)), vcat(m.inds...)))
+        end
+        for (l, j) in enumerate(add_indices)
             if j in m.inds[i]
                 push!(m_shift_i, l + end_index)
             end
@@ -52,8 +60,7 @@ function compute_active_walls!(m::MixedCell,
             caley_config_modP = hcat(caley_config_modP, vcat(M.A_modP[:, j], apd_modP))
             caley_config_Fl = hcat(caley_config_Fl, vcat(M.A_Fl[:, j], apd_Fl))
         end
-        end_index += length(remaining_indices)
-        setdiff!(remaining_indices, m.inds[i]) # CAREFUL
+        end_index += length(add_indices)
         append!(shifted_m_indices, m_shift_i)
         empty!(m_shift_i)
     end
@@ -85,6 +92,67 @@ function compute_active_walls!(m::MixedCell,
         c = Circuit(c_final_inds, c_cfs_modP[c_final_inds], c_cfs_Fl[c_final_inds])
         add_to_dict!(walls, c, (act_index, mindex))
     end
+end
+
+function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int)
+
+    A_loc, V_loc, rem_inds, ind_map = localize(M.A_modP, M.V, m.inds[1:act_index-1])
+
+    inds = if act_index == length(m)
+        union(m.inds[act_index], c.inds)
+    else
+        vcat(m.inds[act_index], m.inds[act_index + 1])
+    end
+
+    matr = matroid_from_matrix_columns(matrix(prime_field_V(M), V_loc))
+    matr = restriction(matr, [ind_map[i] for i in inds])
+
+    Ss_new = Vector{Int}[]
+
+    for S_new in circuits(matr)
+        S_new_A_inds = rem_inds[S_new]
+        if partial_sum(S_new_A_inds, c) < 0 && is_affine_independent(A_loc, S_new)
+            push!(Ss_new, S_new_A_inds)
+        end
+    end
+
+    new_mixed_cells = MixedCell[]
+    for S_new in Ss_new
+        S_new_next = setdiff(inds, S_new)
+        if length(S_new_next) > 1
+            push!(new_mixed_cells, MixedCell([m.inds[1:act_index-1]..., S_new, S_new_next, m.inds[act_index + 2:end]...]))
+        else
+            push!(new_mixed_cells, MixedCell([m.inds[1:act_index-1]..., S_new, m.inds[act_index + 2:end]...]))
+        end
+    end
+
+    return new_mixed_cells
+end
+
+# --- MCI functions --- #
+
+function localize(A::Matrix{FqFieldElem}, V::Matrix{FqFieldElem}, S::Vector{Int})
+    L = linear_span(A, S)
+    rem_inds = setdiff(collect(1:size(A, 2)), S)
+    A_new = project_along_linear_space(L, A[:, rem_inds], length(S) - 1)
+    V_new = project_along_linear_space(V[:, S], V[:, rem_inds], length(S) - 1)
+    ind_map = Dict{Int, Int}()
+    for (i, j) in enumerate(rem_inds)
+        ind_map[j] = i
+    end
+    return A_new, V_new, rem_inds, ind_map
+end
+
+function localize(A::Matrix{FqFieldElem}, V::Matrix{FqFieldElem}, m::Vector{Vector{Int}})
+    A_curr, V_curr, rem_inds = A, V, collect(1:size(A,2))
+    for S in m
+        A_curr, V_curr, rem_inds, _ = localize(A_curr, V_curr, S)
+    end
+    ind_map = Dict{Int, Int}()
+    for (i, j) in enumerate(rem_inds)
+        ind_map[j] = i
+    end
+    return A_curr, V_curr, rem_inds, ind_map
 end
 
 # --- Mixed cell checking/computation --- #
@@ -156,24 +224,38 @@ function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
 end
 
 # checks if m ∪ {S} is a partial mixed cell
-function is_partial_mixed_cell(M::MCI, m::MixedCell, S::Vector{Int})
+function is_partial_mixed_cell(M::MCI, m::MixedCell)
 
-    # check affine independence
-    n = ambient_dim(M)
-    expected_dimension = sum((length).(m.inds)) - length(m)
-    expected_dimension += length(S) - 1
-    F = prime_field_A(M)
-    mc_inds = vcat(m.inds..., S)
-    ms_support = vcat(M.A_modP[:, mc_inds], [one(F) for _ in 1:1, j in 1:length(mc_inds)])
-    Oscar.rank(matrix(F, ms_support)) - 1 != expected_dimension && return false
+    inds = copy(m.inds)
+    A, V, S = M.A_modP, M.V, first(inds)
 
-    # check rank condition on matroid
-    F = prime_field_V(M)
-    V_S = M.V[:, vcat(S, m.inds...)]
-    R_S = Oscar.echelon_form(matrix(F, V_S))
-    any(i -> iszero(R_S[i, i]) || iszero(R_S[i, length(S)]), 1:(length(S) - 1)) && return false
+    for j in 2:length(inds)
+        !is_partial_mixed_cell(A, V, S) && return false
+        A, V, _, ind_map = localize(A, V, S)
+        for l in j:length(inds)
+            inds[l] = [ind_map[a] for a in inds[l]]
+        end
+        S = inds[j]
+    end
 
     return true
+end
+
+function is_partial_mixed_cell(A::Matrix{FqFieldElem},
+                               V::Matrix{FqFieldElem},
+                               S::Vector{Int})
+
+    if is_affine_independent(A, S)
+        F = parent(first(V))
+        V_S = V[:, S]
+        R_S = Oscar.echelon_form(matrix(F, V_S), reduced = false)
+        any(i -> iszero(R_S[i, i]), 1:(length(S) - 1)) && return false
+        if length(S) <= size(V, 1)
+            !iszero(R_S[length(S), length(S)]) && return false
+        end
+        return true
+    end
+    return false
 end
 
 end # module MCISubdivisions

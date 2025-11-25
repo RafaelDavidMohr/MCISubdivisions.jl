@@ -12,6 +12,56 @@ function reduce_mod_rand_prime(V::Matrix{Int})
     return [F(x) for x in V]
 end
 
+function project_along_linear_space(V::Matrix{C}, W::Matrix{C}, V_rank::Int) where C
+
+    VW = hcat(V, W)
+    F = parent(first(V))
+    R = row_echelon_form(matrix(F, VW), reduced = false)
+    return R[V_rank + 1:end, size(V, 2) + 1:end]
+end
+
+function linear_span(A::Matrix{C}, inds::Vector{Int}) where C
+    a0 = A[:, first(inds)]
+    L = Matrix{C}(undef, size(A, 1), 0)
+    for i in inds[2:end]
+        L = hcat(L, A[:, i] - L[:, 1])
+    end
+    return L
+end
+
+function is_affine_independent(A::Matrix{C}, inds::Vector{Int}) where C
+    F = parent(first(A))
+    A_aff = vcat(A[:, inds], transpose([F(1) for _ in 1:length(inds)]))
+    return rank(matrix(F, A_aff)) == length(inds)
+end
+
+# --- helper for our Circuit data structure --- #
+
+function partial_sum(inds::Vector{Int}, c::Circuit)
+    res = 0.0
+    i = 1
+    for (j, ind) in enumerate(c.inds)
+        i > length(inds) && break
+        if ind == inds[i]
+            res += c.cfs_fl[j]
+            i += 1
+        end
+    end
+    return res
+end
+
+function LinearAlgebra.dot(v::Vector{Float64}, c::Circuit)
+    res = 0.0
+    i = 1
+    for j in 1:length(v)
+        i > length(c.inds) && break
+        if j == c.inds[i]
+            res += v[j]*c.cfs_fl[i]
+            i += 1
+        end
+    end
+    return res
+end
 
 # first_intersection(p0, p1, hyperplanes)
 

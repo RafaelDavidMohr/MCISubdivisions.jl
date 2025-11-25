@@ -27,19 +27,6 @@ function Base.hash(c::Circuit, h::UInt)
     return hash(c.inds, hash(c.cfs_modP, h))
 end
 
-function LinearAlgebra.dot(v::Vector{Float64}, c::Circuit)
-    res = 0.0
-    i = 1
-    for j in 1:length(v)
-        i > length(c.inds) && break
-        if j == c.inds[i]
-            res += v[j]*c.cfs_fl[i]
-            i += 1
-        end
-    end
-    return res
-end
-
 struct MCI
     V::Matrix{FqFieldElem} # stored over random finite field to speed up computations
     A_modP::Matrix{FqFieldElem}
@@ -47,6 +34,7 @@ struct MCI
 
     function MCI(V::Matrix{FqFieldElem}, A_modP::Matrix{FqFieldElem}, A_Fl::Matrix{Float64})
         @assert size(V, 2) == size(A_modP, 2) "number of coefficients and monomials does not match."
+        F = parent(first(V))
         return new(V, A_modP, A_Fl)
     end
 end

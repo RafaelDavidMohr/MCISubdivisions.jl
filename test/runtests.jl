@@ -33,10 +33,9 @@ end
     M = hexagon_example()
     m = MCIS.MixedCell([[1,6], [2,3]])
     wd = MCIS.WalkData(M, [m])
-    @test length(keys(wd.walls)) == 5
-    @test length(findall(im -> im[1][1] == 1, wd.walls)) == 3
+    @test length(keys(wd.walls)) == 3
+    @test length(findall(im -> im[1][1] == 1, wd.walls)) == 1
     @test length(findall(im -> im[1][1] == 2, wd.walls)) == 2
-    # TODO: check the obtained circuits are correct
 end
 
 @testset "Mixed Cell Functions" begin
@@ -65,4 +64,17 @@ end
     partial_ms = MCIS.MixedCell([[1,6]])
     m = MCIS.find_dual_tropical_root(M, d, w, partial_ms)
     @test m.inds == [[1,6],[2,3]]
+end
+
+@testset "Mixed Cell Flips" begin
+    # hexagon example
+    M = hexagon_example()
+    m = MCIS.MixedCell([[1,6], [2,3]])
+    wd = MCIS.WalkData(M, [m])
+    c = first(keys(wd.walls))
+    new_mc = MCIS.mixed_cell_flip(m, c, M, 1)
+    @test length(new_mc) == 1
+    @test first(new_mc).inds == [[2,3],[1,6]]
+    m = MCIS.MixedCell([[1,6], [2,4]])
+    wd = MCIS.WalkData(M, [m])
 end
