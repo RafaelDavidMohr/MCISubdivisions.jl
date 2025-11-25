@@ -38,7 +38,7 @@ end
 # --- helper for our Circuit data structure --- #
 
 # potentially to optimize
-function partial_sum_sign(inds::Vector{Int}, c::Circuit, sgn::Bool)
+function partial_sum(inds::Vector{Int}, c::Circuit)
     res = 0.0
     resP = parent(first(c.cfs_modP))(0)
     for (i, ind) in enumerate(c.inds)
@@ -47,6 +47,11 @@ function partial_sum_sign(inds::Vector{Int}, c::Circuit, sgn::Bool)
             resP += c.cfs_modP[i]
         end
     end
+    return res, resP
+end
+
+function partial_sum_sign(inds::Vector{Int}, c::Circuit, sgn::Bool)
+    res, resP = partial_sum(inds, c)
     return resP != 0 && (sgn ? res > 0 : res < 0)
 end
 

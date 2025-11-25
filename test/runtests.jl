@@ -35,8 +35,8 @@ end
     m = MCIS.MixedCell([[1,6], [2,3]])
     wd = MCIS.WalkData(M, [m])
     @test length(keys(wd.walls)) == 3
-    @test length(findall(im -> first(im)[1] == 1, wd.walls)) == 1
-    @test length(findall(im -> first(im)[1] == 2, wd.walls)) == 2
+    @test length(findall(im -> first(im)[2] == 1, wd.walls)) == 1
+    @test length(findall(im -> first(im)[2] == 2, wd.walls)) == 2
 end
 
 @testset "Mixed Cell Functions" begin

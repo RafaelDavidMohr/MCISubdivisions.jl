@@ -21,10 +21,49 @@ end
 
 # --- Functions related to mixed cell cones --- #
 
+function walk_wall!(M::MCI, wd::WalkData, c::Circuit)
+    return
+end
+
+function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int, sgn::Bool)
+
+    A_loc, V_loc, rem_inds, ind_map = localize(M.A_modP, M.V, m.inds[1:act_index-1])
+
+    inds = if act_index == length(m)
+        excld = isone(act_index) ? Int[] : vcat(m.inds[1:act_index-1]...)
+        setdiff(union(m.inds[act_index], c.inds), excld)
+    else
+        vcat(m.inds[act_index], m.inds[act_index + 1])
+    end
+
+    matr = matroid_from_matrix_columns(matrix(prime_field_V(M), V_loc))
+    matr = restriction(matr, [ind_map[i] for i in inds])
+
+    Ss_new = Vector{Int}[]
+
+    for S_new in circuits(matr)
+        S_new_A_inds = rem_inds[S_new]
+        if partial_sum_sign(S_new_A_inds, c, sgn) && is_affine_independent(A_loc, S_new)
+            push!(Ss_new, S_new_A_inds)
+        end
+    end
+
+    new_mixed_cells = MixedCell[]
+    for S_new in Ss_new
+        S_new_next = setdiff(inds, S_new)
+        if length(S_new_next) > 1
+            push!(new_mixed_cells, MixedCell([m.inds[1:act_index-1]..., S_new, S_new_next, m.inds[act_index + 2:end]...]))
+        else
+            push!(new_mixed_cells, MixedCell([m.inds[1:act_index-1]..., S_new, m.inds[act_index + 2:end]...]))
+        end
+    end
+
+    return new_mixed_cells
+end
+
 function compute_active_walls!(m::MixedCell,
-                               mindex::Int,
                                M::MCI,
-                               walls::Dict{Circuit, Set{Tuple{Int, Int, Bool}}})
+                               walls::Dict{Circuit, Set{Tuple{MixedCell, Int, Bool}}})
 
     k = length(m)
     n = ambient_dim(M)
@@ -89,45 +128,9 @@ function compute_active_walls!(m::MixedCell,
             c_cfs_Fl[projection_to_A[ind]] += K_Fl[j, 1]
         end
         c = Circuit(c_cfs_modP, c_cfs_Fl)
-        sgn = signbit(partial_sum(m.inds[act_index], c))
-        add_to_dict!(walls, c, (act_index, mindex, sgn))
+        sgn = signbit(first(partial_sum(m.inds[act_index], c)))
+        add_to_dict!(walls, c, (m, act_index, sgn))
     end
-end
-
-function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int, sgn::Bool)
-
-    A_loc, V_loc, rem_inds, ind_map = localize(M.A_modP, M.V, m.inds[1:act_index-1])
-
-    inds = if act_index == length(m)
-        excld = isone(act_index) ? Int[] : vcat(m.inds[1:act_index-1]...)
-        setdiff(union(m.inds[act_index], c.inds), excld)
-    else
-        vcat(m.inds[act_index], m.inds[act_index + 1])
-    end
-
-    matr = matroid_from_matrix_columns(matrix(prime_field_V(M), V_loc))
-    matr = restriction(matr, [ind_map[i] for i in inds])
-
-    Ss_new = Vector{Int}[]
-
-    for S_new in circuits(matr)
-        S_new_A_inds = rem_inds[S_new]
-        if partial_sum_sign(S_new_A_inds, c, sgn) && is_affine_independent(A_loc, S_new)
-            push!(Ss_new, S_new_A_inds)
-        end
-    end
-
-    new_mixed_cells = MixedCell[]
-    for S_new in Ss_new
-        S_new_next = setdiff(inds, S_new)
-        if length(S_new_next) > 1
-            push!(new_mixed_cells, MixedCell([m.inds[1:act_index-1]..., S_new, S_new_next, m.inds[act_index + 2:end]...]))
-        else
-            push!(new_mixed_cells, MixedCell([m.inds[1:act_index-1]..., S_new, m.inds[act_index + 2:end]...]))
-        end
-    end
-
-    return new_mixed_cells
 end
 
 # --- MCI functions --- #
@@ -156,7 +159,7 @@ function localize(A::Matrix{FqFieldElem}, V::Matrix{FqFieldElem}, m::Vector{Vect
     return A_curr, V_curr, rem_inds, ind_map
 end
 
-# --- Mixed cell checking/computation --- #
+# --- Mixed cell checking/computation for testing --- #
 
 function outer_normal_vector(M::MCI, m::MixedCell,
                              d::Vector{QQFieldElem})

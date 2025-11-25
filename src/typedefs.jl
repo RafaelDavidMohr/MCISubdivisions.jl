@@ -62,21 +62,17 @@ end
 
 struct WalkData
     M::MCI
-    current_mixed_cells::Vector{MixedCell}
-    current_mc_hashed::Dict{MixedCell, Int}
-    walls::Dict{Circuit, Set{Tuple{Int, Int, Bool}}}
+    walls::Dict{Circuit, Set{Tuple{MixedCell, Int, Bool}}}
 end
 
 function WalkData(M::MCI,
                   initial_mixed_cells::Vector{MixedCell})
 
-    walls = Dict{Circuit, Set{Tuple{Int, Int, Bool}}}()
-    current_mc_hashed = Dict{MixedCell, Int}()
-    for (i, m) in enumerate(initial_mixed_cells)
-        current_mc_hashed[m] = i
-        compute_active_walls!(m, i, M, walls)
+    walls = Dict{Circuit, Set{Tuple{MixedCell, Int, Bool}}}()
+    for m in initial_mixed_cells
+        compute_active_walls!(m, M, walls)
     end
-    return WalkData(M, initial_mixed_cells, current_mc_hashed, walls)
+    return WalkData(M, walls)
 end
 
 struct HomotopyPath
