@@ -77,4 +77,12 @@ end
     @test first(new_mc).inds == [[2,3],[1,6]]
     m = MCIS.MixedCell([[1,6], [2,4]])
     wd = MCIS.WalkData(M, [m])
+    c = first(collect(keys(wd.walls)))
+    new_mc = MCIS.mixed_cell_flip(m, c, M, 2)
+    @test length(new_mc) == 1
+    @test first(new_mc).inds == [[1,6],[2,3]]
+    c = last(collect(keys(wd.walls)))
+    new_mc = MCIS.mixed_cell_flip(m, c, M, 1)
+    @test length(new_mc) == 1
+    @test first(new_mc).inds == [[2,4,6]]
 end

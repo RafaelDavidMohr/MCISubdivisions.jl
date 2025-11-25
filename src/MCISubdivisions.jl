@@ -99,7 +99,8 @@ function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int)
     A_loc, V_loc, rem_inds, ind_map = localize(M.A_modP, M.V, m.inds[1:act_index-1])
 
     inds = if act_index == length(m)
-        union(m.inds[act_index], c.inds)
+        excld = isone(act_index) ? Int[] : vcat(m.inds[1:act_index-1]...)
+        setdiff(union(m.inds[act_index], c.inds), excld)
     else
         vcat(m.inds[act_index], m.inds[act_index + 1])
     end

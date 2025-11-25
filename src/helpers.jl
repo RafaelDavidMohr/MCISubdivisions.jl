@@ -16,15 +16,15 @@ function project_along_linear_space(V::Matrix{C}, W::Matrix{C}, V_rank::Int) whe
 
     VW = hcat(V, W)
     F = parent(first(V))
-    R = row_echelon_form(matrix(F, VW), reduced = false)
-    return R[V_rank + 1:end, size(V, 2) + 1:end]
+    R = echelon_form(matrix(F, VW), reduced = false)
+    return Matrix(R[V_rank + 1:end, size(V, 2) + 1:end])
 end
 
 function linear_span(A::Matrix{C}, inds::Vector{Int}) where C
     a0 = A[:, first(inds)]
     L = Matrix{C}(undef, size(A, 1), 0)
     for i in inds[2:end]
-        L = hcat(L, A[:, i] - L[:, 1])
+        L = hcat(L, A[:, i] - a0)
     end
     return L
 end
@@ -39,12 +39,9 @@ end
 
 function partial_sum(inds::Vector{Int}, c::Circuit)
     res = 0.0
-    i = 1
-    for (j, ind) in enumerate(c.inds)
-        i > length(inds) && break
-        if ind == inds[i]
-            res += c.cfs_fl[j]
-            i += 1
+    for (i, ind) in enumerate(c.inds)
+        if ind in inds
+            res += c.cfs_fl[i]
         end
     end
     return res
