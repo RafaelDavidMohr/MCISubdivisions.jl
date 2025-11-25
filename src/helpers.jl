@@ -37,6 +37,7 @@ end
 
 # --- helper for our Circuit data structure --- #
 
+# potentially to optimize
 function partial_sum(inds::Vector{Int}, c::Circuit)
     res = 0.0
     for (i, ind) in enumerate(c.inds)

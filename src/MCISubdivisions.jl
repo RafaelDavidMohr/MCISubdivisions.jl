@@ -24,7 +24,7 @@ end
 function compute_active_walls!(m::MixedCell,
                                mindex::Int,
                                M::MCI,
-                               walls::Dict{Circuit, Set{Tuple{Int, Int}}})
+                               walls::Dict{Circuit, Set{Tuple{Int, Int, Bool}}})
 
     k = length(m)
     n = ambient_dim(M)
@@ -88,14 +88,16 @@ function compute_active_walls!(m::MixedCell,
             c_cfs_modP[projection_to_A[ind]] += K_modP[j, 1]
             c_cfs_Fl[projection_to_A[ind]] += K_Fl[j, 1]
         end
-        c_final_inds = findall(!iszero, c_cfs_modP)
-        c = Circuit(c_final_inds, c_cfs_modP[c_final_inds], c_cfs_Fl[c_final_inds])
-        add_to_dict!(walls, c, (act_index, mindex))
+        c = Circuit(c_cfs_modP, c_cfs_Fl)
+        sgn = signbit(partial_sum(m.inds[act_index], c))
+        add_to_dict!(walls, c, (act_index, mindex, sgn))
     end
 end
 
-function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int)
+function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int, sgn::Bool)
 
+    cmpr = x -> sgn ? x > 0 : x < 0
+    
     A_loc, V_loc, rem_inds, ind_map = localize(M.A_modP, M.V, m.inds[1:act_index-1])
 
     inds = if act_index == length(m)
@@ -112,7 +114,7 @@ function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int)
 
     for S_new in circuits(matr)
         S_new_A_inds = rem_inds[S_new]
-        if partial_sum(S_new_A_inds, c) < 0 && is_affine_independent(A_loc, S_new)
+        if cmpr(partial_sum(S_new_A_inds, c)) && is_affine_independent(A_loc, S_new)
             push!(Ss_new, S_new_A_inds)
         end
     end
@@ -187,33 +189,32 @@ function outer_normal_vector(M::MCI, m::MixedCell,
 end
 
 function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
-                                 w::Vector{QQFieldElem},
-                                 partial_ms::MixedCell)
+                                 w::Vector{QQFieldElem})
 
     result = Vector{Int}[]
 
     A_card = size(M.A_modP, 2)
-    A_loc_indices = findall(i -> all(S -> !(i in S), partial_ms.inds), 1:A_card)
-    n_loc = ambient_dim(M) - codim(partial_ms)
+    A_indices = collect(1:A_card)
+    n = ambient_dim(M)
     w_fl = (Float64).(w)
     d_fl = (Float64).(d)
-    sort!(A_loc_indices, by = i -> dot(w_fl, M.A_Fl[:, i]) + d_fl[i], rev = true)
+    sort!(A_indices, by = i -> dot(w_fl, M.A_Fl[:, i]) + d_fl[i], rev = true)
 
     F = prime_field_A(M)
     w_modP = (F).(w)
     d_modP = (F).(d)
 
-    prev_deg = dot(w_modP, M.A_modP[:, first(A_loc_indices)]) + d_modP[first(A_loc_indices)]
+    prev_deg = dot(w_modP, M.A_modP[:, first(A_indices)]) + d_modP[first(A_indices)]
     Sj = Int[]
     result_codim = 0
 
-    for (j, i) in enumerate(A_loc_indices)
-        result_codim == n_loc && break
+    for (j, i) in enumerate(A_indices)
+        result_codim == n && break
         new_deg = dot(w_modP, M.A_modP[:, i]) + d_modP[i] 
         if new_deg == prev_deg
             push!(Sj, i)
         end
-        if j == length(A_loc_indices) || new_deg != prev_deg
+        if j == length(A_indices) || new_deg != prev_deg
             result_codim += length(Sj) - 1
             push!(result, copy(Sj))
             Sj = [i]
@@ -221,22 +222,21 @@ function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
         prev_deg = new_deg
     end
             
-    return MixedCell(vcat(partial_ms.inds, result))
+    return MixedCell(result)
 end
 
 # checks if m ∪ {S} is a partial mixed cell
 function is_partial_mixed_cell(M::MCI, m::MixedCell)
 
     inds = copy(m.inds)
-    A, V, S = M.A_modP, M.V, first(inds)
+    A, V = M.A_modP, M.V
 
-    for j in 2:length(inds)
-        !is_partial_mixed_cell(A, V, S) && return false
-        A, V, _, ind_map = localize(A, V, S)
-        for l in j:length(inds)
+    for j in 1:length(inds)
+        !is_partial_mixed_cell(A, V, inds[j]) && return false
+        A, V, _, ind_map = localize(A, V, inds[j])
+        for l in j+1:length(inds)
             inds[l] = [ind_map[a] for a in inds[l]]
         end
-        S = inds[j]
     end
 
     return true

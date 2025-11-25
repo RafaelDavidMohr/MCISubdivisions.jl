@@ -1,5 +1,6 @@
 using MCISubdivisions
 using Oscar
+using Test
 
 const MCIS = MCISubdivisions
 
@@ -34,8 +35,8 @@ end
     m = MCIS.MixedCell([[1,6], [2,3]])
     wd = MCIS.WalkData(M, [m])
     @test length(keys(wd.walls)) == 3
-    @test length(findall(im -> im[1][1] == 1, wd.walls)) == 1
-    @test length(findall(im -> im[1][1] == 2, wd.walls)) == 2
+    @test length(findall(im -> first(im)[1] == 1, wd.walls)) == 1
+    @test length(findall(im -> first(im)[1] == 2, wd.walls)) == 2
 end
 
 @testset "Mixed Cell Functions" begin
@@ -46,23 +47,19 @@ end
     w = (QQ).([d0 - d[i] for i in 2:5])
     mixed_cell = MCIS.find_dual_tropical_root(M, d, w)
     @test mixed_cell.inds == [collect(1:5)]
-    @test MCIS.is_partial_mixed_cell(M, MCIS.MixedCell(Vector{Int}[]), collect(1:5))
+    @test MCIS.is_partial_mixed_cell(M, mixed_cell)
 
     # hexagon example
     M = hexagon_example()
-    init_ms = MCIS.MixedCell([[1,6]])
+    inds = [1,6]
     for S in [[2,3], [4,5]]
-        @test MCIS.is_partial_mixed_cell(M, init_ms, S)
+        @test MCIS.is_partial_mixed_cell(M, MCIS.MixedCell([inds, S]))
     end
-    @test !MCIS.is_partial_mixed_cell(M, init_ms, [3,4])
+    @test !MCIS.is_partial_mixed_cell(M, MCIS.MixedCell([inds, [3,4]]))
 
     d = (QQ).([14,27,56,63,50,27])
     w = (QQ).([-16,-13])
-    partial_ms = MCIS.MixedCell(Vector{Int}[])
-    m = MCIS.find_dual_tropical_root(M, d, w, partial_ms)
-    @test m.inds == [[1,6],[2,3]]
-    partial_ms = MCIS.MixedCell([[1,6]])
-    m = MCIS.find_dual_tropical_root(M, d, w, partial_ms)
+    m = MCIS.find_dual_tropical_root(M, d, w)
     @test m.inds == [[1,6],[2,3]]
 end
 
@@ -71,18 +68,18 @@ end
     M = hexagon_example()
     m = MCIS.MixedCell([[1,6], [2,3]])
     wd = MCIS.WalkData(M, [m])
-    c = first(keys(wd.walls))
-    new_mc = MCIS.mixed_cell_flip(m, c, M, 1)
+    c = last(collect(keys(wd.walls)))
+    new_mc = MCIS.mixed_cell_flip(m, c, M, 1, false)
     @test length(new_mc) == 1
     @test first(new_mc).inds == [[2,3],[1,6]]
     m = MCIS.MixedCell([[1,6], [2,4]])
     wd = MCIS.WalkData(M, [m])
-    c = first(collect(keys(wd.walls)))
-    new_mc = MCIS.mixed_cell_flip(m, c, M, 2)
+    c = collect(keys(wd.walls))[2]
+    new_mc = MCIS.mixed_cell_flip(m, c, M, 2, false)
     @test length(new_mc) == 1
     @test first(new_mc).inds == [[1,6],[2,3]]
     c = last(collect(keys(wd.walls)))
-    new_mc = MCIS.mixed_cell_flip(m, c, M, 1)
+    new_mc = MCIS.mixed_cell_flip(m, c, M, 1, false)
     @test length(new_mc) == 1
     @test first(new_mc).inds == [[2,4,6]]
 end

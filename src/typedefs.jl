@@ -17,6 +17,12 @@ struct Circuit
     inds::Vector{Int}
     cfs_modP::Vector{FqFieldElem}
     cfs_fl::Vector{Float64}
+
+    function Circuit(cfs_modP::Vector{FqFieldElem}, cfs_fl::Vector{Float64})
+        inds = findall(!iszero, cfs_modP)
+        ni = first(inds)
+        return new(inds, cfs_modP[ni]^(-1) .* cfs_modP[inds], cfs_fl[ni]^(-1) .* cfs_fl[inds])
+    end
 end
 
 function Base.:(==)(c1::Circuit, c2::Circuit)
@@ -58,13 +64,13 @@ struct WalkData
     M::MCI
     current_mixed_cells::Vector{MixedCell}
     current_mc_hashed::Dict{MixedCell, Int}
-    walls::Dict{Circuit, Set{Tuple{Int, Int}}}
+    walls::Dict{Circuit, Set{Tuple{Int, Int, Bool}}}
 end
 
 function WalkData(M::MCI,
                   initial_mixed_cells::Vector{MixedCell})
 
-    walls = Dict{Circuit, Set{Tuple{Int, Int}}}()
+    walls = Dict{Circuit, Set{Tuple{Int, Int, Bool}}}()
     current_mc_hashed = Dict{MixedCell, Int}()
     for (i, m) in enumerate(initial_mixed_cells)
         current_mc_hashed[m] = i
