@@ -76,6 +76,7 @@ end
     
 function first_intersection(p0::Vector{Float64},
                             p1::Vector{Float64},
+                            t0::Float64,
                             hyperplanes::Vector{Circuit}) 
 
     d = p1 - p0
@@ -87,7 +88,7 @@ function first_intersection(p0::Vector{Float64},
         denom = dot(d, c)
         @assert abs(denom) < 1e-12 "Path not generic enough!"
         t = -(dot(p0, c)) / denom
-        if 0 < t <= 1 && t < best_t # t = 0 explicitly excluded
+        if t0 < t <= 1 && t < best_t # t0 explicitly excluded
             best_t = t
             best_h = c
         end
@@ -110,25 +111,19 @@ end
 function piecewice_linear_path(p0::Vector{QQFieldElem},
                                p1::Vector{QQFieldElem}) 
 
-    n = length(p0)
-    eps = 1e-8
+    n = length(p0) # ambient dimension
+    eps = 1e-2
     points = Vector{Float64}[]
 
     push!(points, p0)
-
-    prev = p0
-    for _ in 1:n
-        t = rand()  # random number in [0,1]
-        shifts = (2 .* rand(n) .- 1) .* eps #random numbers in [-eps,eps]
-        # Next point lies between prev and p1
-        next_point = prev + t * (p1 - prev) + shifts 
-        push!(points, next_point)
-        prev = next_point
+    for i in 1:n-1
+        shifts = (2 .* rand(n) .- 1) .* eps # random numbers in [-eps,eps]
+        pt = p0 + i/n*(p1 - p0) + shifts
+        push!(points, pt)
     end
-
     push!(points, p1)
 
-    return HomotopyPath(points)
+    return HomotopyPath(0.0, points)
 end
 
 # to compute the point of the first intersection of piecewise linear path with given hyperplanes
@@ -137,14 +132,19 @@ function first_intersection_with_path!(path::HomotopyPath,
 
     n = length(path)
 
-    t_int, h_int = Inf, nothing
+    h_int = nothing
     while isnothing(h_int) && !is_completed(path)
         p1, p2 = path[1], path[2]
-        t_int, h_int = first_intersection(p1, p2, hyperplanes)
-        isnothing(h_int) && popfirst!(path.points)
+        t_int, h_int = first_intersection(p1, p2, path.t_curr, hyperplanes)
+        if isnothing(h_int)
+            popfirst!(path.points)
+            path.t_curr = 0.0
+        else
+            path.t_curr = t_int
+        end
     end
 
-    return t_int, h_int
+    return h_int
 end
 
 # --- small helpers --- #

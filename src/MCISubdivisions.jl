@@ -8,21 +8,78 @@ include("helpers.jl")
 
 # --- Main functions --- #
 
+function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
+    Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
+    F = parent(first(V))
+    rand_mix = matrix(F, (F).(rand(1:characteristic(F)-1, size(V, 1), size(V, 1))))
+    Vp = rand_mix * Vp
+    wd, path = total_degree_homotopy(A, Vp)
+    walk_homotopy!(wd, path)
+    return unique!(vcat([(tup -> tup[1]).(wd.walls[c]) for c in keys(wd.walls)]...))
+end
+
 function walk_homotopy!(w::WalkData, p::HomotopyPath)
 
+    @info "starting homotopy"
+
     while !is_completed(path)
-        t_int, h_int = first_intersection_with_path!(p, keys(w.walls))
-        isnothing(h_int) && return
-        for (act_index, m_index) in w.walls[h_int] 
-            # to continue
+        c_int = first_intersection_with_path!(p, keys(w.walls))
+        if isnothing(c_int)
+            @info "no intersection left, finished"
+            return
         end
+        @info "intersection found, $(length(p.points) - 1) segments remaining"
+        @info "$(length(w.walls[c_int])) mixed cells to flip"
+        walk_wall!(w, c_int)
     end
+end
+
+function total_degree_homotopy(A::Matrix{Int}, V::Matrix{FqFieldElem})
+    A_size = size(A, 2)
+    zeropos = findfirst(i -> iszero(A[:, i]), 1:A_size)
+    @assert !isnothing(zeropos) "Support does not contain origin, consider shifting"
+
+    # extended MCI
+    max_deg = max(i -> sum(A[:, i]), 1:A_size)
+    n = size(A, 1)
+    A_ext = copy(A)
+    V_ext = copy(V)
+    F = parent(first(V))
+    for i in 1:n
+        A_ext = hcat(A_ext, [j == i ? 1 : 0 for j in 1:n])
+        V_ext = hcat(V_ext, (F).(rand(1:characteristic(F)-1, n)))
+    end
+    M = MCI(V_ext, A_ext)
+
+    # set up path
+    p0 = vcat(zeros(Float64, zeropos - 1),
+              [100 * rand()],
+              zeros(Float64, A_size - zeropos),
+              100 * rand(n))
+    p1 = vcat(100 * rand(A_size), zeros(Float64, n))
+    path = piecewice_linear_path(p0, p1)
+
+    # initial mixed cell
+    init_mc = MixedCell([zeropos, collect(A_size+1:A_size+1+n)...])
+    wd = WalkData(M, [init_mc])
+
+    return wd, path
 end
 
 # --- Functions related to mixed cell cones --- #
 
-function walk_wall!(M::MCI, wd::WalkData, c::Circuit)
-    return
+function walk_wall!(wd::WalkData, c::Circuit)
+    active_mc_data = wd.walls[c]
+    delete!(wd.walls, c)
+    cnt = 0
+    for (m, act_index, sgn) in active_mc_data
+        new_mixed_cells = mixed_cell_flip(m, c, act_index, sgn)
+        cnt += length(new_mixed_cells)
+        for new_mc in new_mixed_cells
+            compute_active_walls!(new_mc, wd.M, wd.walls)
+        end
+    end
+    @info "$(cnt) new mixed cells (possible duplicates)"
 end
 
 function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int, sgn::Bool)

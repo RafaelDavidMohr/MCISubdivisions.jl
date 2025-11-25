@@ -45,8 +45,8 @@ struct MCI
     end
 end
 
-function MCI(V::Matrix{QQFieldElem}, A::Matrix{Int64})
-    Vp = reduce_mod_rand_prime(V)
+function MCI(V::Matrix{C}, A::Matrix{Int64}) where C
+    Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
     A_modP = reduce_mod_rand_prime(A)
     A_Fl = (Float64).(A)
     
@@ -76,6 +76,7 @@ function WalkData(M::MCI,
 end
 
 struct HomotopyPath
+    t_curr::Float64 # current position in path: t_curr * points[1] + (1 - t) * points[2]
     points::Vector{Vector{Float64}}
 end
 
