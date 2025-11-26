@@ -15,9 +15,6 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     Vp = Matrix(rand_mix * matrix(F, Vp))
     wd, path = total_degree_homotopy(A, Vp)
 
-    p1_fl = last(path.points)
-    p1 = (QQ).((rationalize).(p1_fl))
-
     walk_homotopy!(wd, path)
 
     A_size = size(A, 2)
@@ -29,36 +26,34 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
         end
     end
 
-    println(p1)
-    for m in result
-        _, w = outer_normal_vector(wd.M, m, p1)
-        println(m.inds)
-        println((i -> dot(w, wd.M.A_Fl[:, i]) + p1_fl[i]).(1:A_size))
-    end
-    
-    return wd, collect(result)
+    # for m in result
+    #     @assert is_in_mixed_cell_cone(wd, m, p1)
+    # end
+
+    return collect(result)
 end
 
 function walk_homotopy!(w::WalkData, path::HomotopyPath)
 
     @info "starting homotopy"
 
+    c_prev = nothing
     while !is_completed(path)
-        c_int = first_intersection_with_path!(path, keys(w.walls))
+        c_int = first_intersection_with_path!(path, keys(w.walls), c_prev)
         if isnothing(c_int)
             @info "no intersection left, finished"
             return
         end
+        @info "t = $(path.t_curr)"
         @info "intersection found, $(length(path.points) - 1) segments remaining"
         @info "$(length(w.walls[c_int])) mixed cells to flip"
         walk_wall!(w, c_int)
+        c_prev = c_int
     end
 end
 
 function total_degree_homotopy(A::Matrix{Int}, V::Matrix{FqFieldElem})
     A_size = size(A, 2)
-    zeropos = findfirst(i -> iszero(A[:, i]), 1:A_size)
-    @assert !isnothing(zeropos) "Support does not contain origin, consider shifting"
 
     # extended MCI
     max_deg = maximum(i -> sum(A[:, i]), 1:A_size)
@@ -66,23 +61,22 @@ function total_degree_homotopy(A::Matrix{Int}, V::Matrix{FqFieldElem})
     A_ext = copy(A)
     V_ext = copy(V)
     F = parent(first(V))
-    for i in 1:n
+    for i in 0:n
         A_ext = hcat(A_ext, [j == i ? max_deg : 0 for j in 1:n])
-        V_ext = hcat(V_ext, (F).(rand(1:characteristic(F)-1, n)))
+        V_ext = hcat(V_ext, rand_vec_ff(F, n))
     end
     M = MCI(V_ext, A_ext)
 
     # set up path
-    p0 = vcat(zeros(Float64, zeropos - 1),
-              [10 * rand()],
-              zeros(Float64, A_size - zeropos),
-              10 * rand(n))
-    p1 = vcat(10 * rand(A_size),
-              zeros(Float64, n))
-    path = piecewice_linear_path(p0, p1)
+    p0 = vcat(zeros(Float64, A_size),
+              10 .* ones(Float64, n+1) + rand(n+1))
+    p1 = vcat(10 .* ones(Float64, A_size) + rand(A_size),
+              zeros(Float64, n+1))
+
+    path = piecewice_linear_path(p0, p1, 4)
 
     # initial mixed cell
-    init_mc = MixedCell([[zeropos, collect(A_size+1:A_size+1+n-1)...]])
+    init_mc = MixedCell([collect(A_size+1:A_size+n+1)])
     wd = WalkData(M, [init_mc])
 
     return wd, path
@@ -92,13 +86,13 @@ end
 
 function walk_wall!(wd::WalkData, c::Circuit)
     active_mc_data = wd.walls[c]
-    delete!(wd.walls, c) # TODO HERE: DELETE MIXED CELLS ALSO ELSEWHERE
+    delete!(wd.walls, c) 
     cnt = 0
     for (m, act_index, sgn) in active_mc_data
+        delete_mixed_cell!(wd, m)
         new_mixed_cells = mixed_cell_flip(m, c, wd.M, act_index, sgn)
         cnt += length(new_mixed_cells)
         for new_mc in new_mixed_cells
-            @assert is_partial_mixed_cell(wd.M, new_mc)
             compute_active_walls!(new_mc, wd.M, wd.walls)
         end
     end
@@ -338,6 +332,15 @@ function is_partial_mixed_cell(A::Matrix{FqFieldElem},
         return true
     end
     return false
+end
+
+function is_in_mixed_cell_cone(wd::WalkData, m::MixedCell, d::Vector{Float64})
+    for c in keys(wd.walls)
+        for (m0, _, sgn) in wd.walls[c]
+            m0 == m && (sgn ? dot(d, c) > 0 : dot(d, c) < 0) && return false
+        end
+    end
+    return true
 end
 
 end # module MCISubdivisions

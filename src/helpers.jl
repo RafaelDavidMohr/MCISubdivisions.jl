@@ -57,27 +57,19 @@ end
 
 function LinearAlgebra.dot(v::Vector{Float64}, c::Circuit)
     res = 0.0
-    i = 1
-    for j in 1:length(v)
-        i > length(c.inds) && break
-        if j == c.inds[i]
-            res += v[j]*c.cfs_fl[i]
-            i += 1
-        end
+    for (i, ind) in enumerate(c.inds)
+        res += v[ind]*c.cfs_fl[i]
     end
     return res
 end
 
-# first_intersection(p0, p1, hyperplanes)
-
-# given two points p0, p1 and hyperplanes hyperplanes = [ ([a1, a2, ... , an]), ... , )
-# return the hyperplane that p0 + t(p1 - p0), t = [0,1], intersects the first, the value of t on this intersection 
-# and the point of the intersection 
+# --- Functions to help with Homotopy Paths --- #
     
 function first_intersection(p0::Vector{Float64},
                             p1::Vector{Float64},
                             t0::Float64,
-                            hyperplanes::AbstractSet{Circuit}) 
+                            hyperplanes::AbstractSet{Circuit},
+                            h_excluded::Union{Nothing, Circuit}) 
 
     d = p1 - p0
 
@@ -85,6 +77,7 @@ function first_intersection(p0::Vector{Float64},
     best_h = nothing
 
     for c in hyperplanes
+        c == h_excluded && continue
         denom = dot(d, c)
         @assert abs(denom) > 1e-12 "Path not generic enough!"
         t = -(dot(p0, c)) / denom
@@ -97,7 +90,6 @@ function first_intersection(p0::Vector{Float64},
     return best_t, best_h
 end
 
-# to compute the total length of the given piecewise linear path
 function path_length(path::HomotopyPath)
     points = path.points
     total = 0.0
@@ -107,18 +99,17 @@ function path_length(path::HomotopyPath)
     return total
 end
 
-# to compute the piecewise linear path on n = size(p0) points
 function piecewice_linear_path(p0::Vector{Float64},
-                               p1::Vector{Float64}) 
+                               p1::Vector{Float64},
+                               nsegs=length(p0)::Int) 
 
-    n = length(p0) # ambient dimension
     eps = 1e-2
     points = Vector{Float64}[]
 
     push!(points, p0)
-    for i in 1:n-1
-        shifts = (2 .* rand(n) .- 1) .* eps # random numbers in [-eps,eps]
-        pt = p0 + i/n*(p1 - p0) + shifts
+    for i in 1:nsegs-1
+        shifts = (2 .* rand(length(p0)) .- 1) .* eps # random numbers in [-eps,eps]
+        pt = (p0 .+ (i/nsegs) .* (p1 - p0)) + shifts
         push!(points, pt)
     end
     push!(points, p1)
@@ -126,16 +117,16 @@ function piecewice_linear_path(p0::Vector{Float64},
     return HomotopyPath(0.0, points)
 end
 
-# to compute the point of the first intersection of piecewise linear path with given hyperplanes
 function first_intersection_with_path!(path::HomotopyPath,
-                                       hyperplanes::AbstractSet{Circuit}) 
+                                       hyperplanes::AbstractSet{Circuit},
+                                       h_excluded::Union{Nothing, Circuit}) 
 
     n = length(path)
 
     h_int = nothing
     while isnothing(h_int) && !is_completed(path)
         p1, p2 = path[1], path[2]
-        t_int, h_int = first_intersection(p1, p2, path.t_curr, hyperplanes)
+        t_int, h_int = first_intersection(p1, p2, path.t_curr, hyperplanes, h_excluded)
         if isnothing(h_int)
             popfirst!(path.points)
             path.t_curr = 0.0
@@ -147,7 +138,20 @@ function first_intersection_with_path!(path::HomotopyPath,
     return h_int
 end
 
-# --- small helpers --- #
+# --- auxiliary helpers --- #
+
+function rand_vec_ff(F::FqField, n::Int)
+    return (F).(rand(0:characteristic(F)-1, n))
+end
+
+function delete_mixed_cell!(wd::WalkData, m::MixedCell)
+    for c in keys(wd.walls)
+        filter!(((m0, i, j),) -> m != m0, wd.walls[c])
+        if isempty(wd.walls[c])
+            delete!(wd.walls, c)
+        end
+    end
+end
 
 function add_to_dict!(d::Dict{T, Set{S}}, k::T, v::S) where {T, S}
     if haskey(d, k)
