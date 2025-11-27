@@ -1,4 +1,14 @@
-# --- matrix functions --- #
+# --- mixed cells --- #
+
+function vol(m::MixedCell, A::Matrix{Int})
+    res = 1
+    for S in m.inds
+        res *= lattice_volume(convex_hull(transpose(A[:, S])))
+    end
+    return res
+end
+
+# --- matrix --- #
 
 function reduce_mod_rand_prime(V::Matrix{QQFieldElem})
     p = Hecke.rand_bits_prime(ZZ, 31)
@@ -35,7 +45,7 @@ function is_affine_independent(A::Matrix{C}, inds::Vector{Int}) where C
     return rank(matrix(F, A_aff)) == length(inds)
 end
 
-# --- helper for our Circuit data structure --- #
+# --- circuits --- #
 
 # potentially to optimize
 function partial_sum(inds::Vector{Int}, c::Circuit)
@@ -63,7 +73,7 @@ function LinearAlgebra.dot(v::Vector{Float64}, c::Circuit)
     return res
 end
 
-# --- Functions to help with Homotopy Paths --- #
+# --- homotopy paths --- #
     
 function first_intersection(p0::Vector{Float64},
                             p1::Vector{Float64},

@@ -83,3 +83,13 @@ end
     @test length(new_mc) == 1
     @test first(new_mc).inds == [[2,4,6]]
 end
+
+@testset "Mixed Volume" begin
+    A = [0 1 2 2 1 0; 0 0 1 2 2 1]
+    r = rand(1:100, 1, 2)
+    g = rand(1:100, 1, 2)
+    b = rand(1:100, 1, 2)
+    V = hcat([r[1]],g,b,[r[2]])
+    V = (QQ).(vcat(V, hcat([r[1]], 2*g, 3*b, [r[2]])))
+    @test mixed_volume(A, V) == 3
+end

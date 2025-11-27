@@ -6,7 +6,14 @@ using LinearAlgebra
 include("typedefs.jl")
 include("helpers.jl")
 
+export mixed_volume, mixed_subdivision
+
 # --- Main functions --- #
+
+function mixed_volume(A::Matrix{Int}, V::Matrix{C}) where C
+    cells = mixed_subdivision(A, V)
+    return sum([vol(m, A) for m in cells])
+end
 
 function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
@@ -73,7 +80,7 @@ function total_degree_homotopy(A::Matrix{Int}, V::Matrix{FqFieldElem})
     p1 = vcat(10 .* ones(Float64, A_size) + rand(A_size),
               zeros(Float64, n+1))
 
-    path = piecewice_linear_path(p0, p1, 4)
+    path = piecewice_linear_path(p0, p1, 1)
 
     # initial mixed cell
     init_mc = MixedCell([collect(A_size+1:A_size+n+1)])
