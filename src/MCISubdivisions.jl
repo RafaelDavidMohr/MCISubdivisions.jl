@@ -10,6 +10,13 @@ export mixed_volume, mixed_subdivision
 
 # --- Main functions --- #
 
+function mixed_volume(F::Vector{<:MPolyRingElem})
+    R = parent(first(F))
+    @assert ngens(R) == length(F) "Input system not square"
+    A, V = get_eci_data(F)
+    return mixed_volume(A, V)
+end
+
 function mixed_volume(A::Matrix{Int}, V::Matrix{C}) where C
     cells = mixed_subdivision(A, V)
     return sum([vol(m, A) for m in cells])
@@ -32,10 +39,6 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
             push!(result, m)
         end
     end
-
-    # for m in result
-    #     @assert is_in_mixed_cell_cone(wd, m, p1)
-    # end
 
     return collect(result)
 end
@@ -76,8 +79,8 @@ function total_degree_homotopy(A::Matrix{Int}, V::Matrix{FqFieldElem})
 
     # set up path
     p0 = vcat(zeros(Float64, A_size),
-              10 .* ones(Float64, n+1) + rand(n+1))
-    p1 = vcat(10 .* ones(Float64, A_size) + rand(A_size),
+              ones(Float64, n+1) + rand(n+1))
+    p1 = vcat(ones(Float64, A_size) + rand(A_size),
               zeros(Float64, n+1))
 
     path = piecewice_linear_path(p0, p1, 1)

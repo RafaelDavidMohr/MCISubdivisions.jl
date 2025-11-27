@@ -148,7 +148,15 @@ function first_intersection_with_path!(path::HomotopyPath,
     return h_int
 end
 
-# --- auxiliary helpers --- #
+# --- other helpers --- #
+
+function get_eci_data(F::Vector{<:MPolyRingElem})
+    exps = unique(vcat([collect(exponents(f)) for f in F]...))
+    A = hcat(exps...)
+    CT = eltype(base_ring(parent(first(F))))
+    V = [coeff(f, A[:, i]) for f in F, i in 1:size(A, 2)]
+    return A, V
+end
 
 function rand_vec_ff(F::FqField, n::Int)
     return (F).(rand(0:characteristic(F)-1, n))
@@ -169,17 +177,4 @@ function add_to_dict!(d::Dict{T, Set{S}}, k::T, v::S) where {T, S}
     else
         d[k] = Set([v])
     end
-end
-
-# random point on line segment between p1 and p2 
-# with upper bound on parameter t
-function random_path_point(p1::Vector{Float64},
-                           p2::Vector{Float64},
-                           upb_t::Float64)
-
-    denom = ceil(Int, 1000/upb_t)
-    a = rand(1:denom-1)
-    t = a/denom
-    p_fl = (1 - t)*p1 + t*p2
-    return (x -> QQ(rationalize(Int32, p_fl))).(p_fl)
 end

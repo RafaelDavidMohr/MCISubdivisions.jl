@@ -2,6 +2,7 @@ struct MixedCell
     inds::Vector{Vector{Int}}
 end
 
+# Not sure why we have to overload this
 function Base.:(==)(m1::MixedCell, m2::MixedCell)
     length(m1.inds) != length(m2.inds) && return false
     for (i, S) in enumerate(m1.inds)
