@@ -25,8 +25,8 @@ function mixed_subdivision(F::Vector{<:MPolyRingElem})
 end
 
 function mixed_volume(A::Matrix{Int}, V::Matrix{C}) where C
-    cells = mixed_subdivision(A, V)
-    return sum([vol(m, A) for m in cells])
+    A_ext, cells = mixed_subdivision(A, V)
+    return sum([vol(m, A_ext) for m in cells])
 end
 
 function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
@@ -34,37 +34,39 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     F = parent(first(Vp))
     rand_mix = matrix(F, (F).(rand(1:characteristic(F)-1, size(V, 1), size(V, 1))))
     Vp = Matrix(rand_mix * matrix(F, Vp))
-    wd, path = total_degree_homotopy(A, Vp)
-    p1 = last(path.points)
+    A_ext, wd, p0, p1 = total_degree_homotopy(A, Vp)
 
-    walk_homotopy!(wd, path)
+    start_cell = first(first(wd.walls[first(keys(wd.walls))]))
+    test_vol = vol(start_cell, A_ext)
+    println(test_vol)
+
+    walk_homotopy!(wd, p0, p1)
 
     A_size = size(A, 2)
     result = Set{MixedCell}()
     for c in keys(wd.walls)
         for (m, act_index, sgn) in wd.walls[c]
-            @assert is_in_mixed_cell_cone(wd, m, p1)
-            # any(S -> any(i -> i > A_size, S), m.inds) && continue
+            # @assert is_in_mixed_cell_cone(wd, m, p1)
+            any(S -> any(i -> i > A_size, S), m.inds) && continue
             push!(result, m)
         end
     end
 
-    return collect(result)
+    return A_ext, collect(result)
 end
 
-function walk_homotopy!(w::WalkData, path::HomotopyPath)
+function walk_homotopy!(w::WalkData, p0::Vector{Int}, p1::Vector{Int})
 
     @info "starting homotopy"
 
     c_prev = nothing
-    while !is_completed(path)
-        c_int = first_intersection_with_path!(path, keys(w.walls), c_prev)
+    while true
+        c_int = first_intersection(p0, p1, keys(w.walls), c_prev)
         if isnothing(c_int)
             @info "no intersection left, finished"
             return
         end
-        @info "t = $(path.t_curr)"
-        @info "intersection found, $(length(path.points) - 1) segments remaining"
+        @info "intersection found"
         @info "$(length(w.walls[c_int])) mixed cells to flip"
         walk_wall!(w, c_int)
         c_prev = c_int
@@ -90,18 +92,16 @@ function total_degree_homotopy(A::Matrix{Int}, V::Matrix{FqFieldElem})
     p0 = forgetful_lift(A_size + n + 1, collect(1:A_size))
     p1 = forgetful_lift(A_size + n + 1, collect(A_size+1:A_size+n+1))
 
-    path = piecewice_linear_path(p0, p1, 4)
-
     # initial mixed cell
     init_mc = MixedCell([collect(A_size+1:A_size+n+1)])
     wd = WalkData(M, [init_mc])
 
-    return wd, path
+    return A_ext, wd, p0, p1
 end
 
 # --- Functions related to mixed cell cones --- #
 
-function walk_wall!(wd::WalkData, c::Circuit)
+function walk_wall!(wd::WalkData, c::Hyperplane)
     active_mc_data = wd.walls[c]
     delete!(wd.walls, c) 
     cnt = 0
@@ -116,13 +116,13 @@ function walk_wall!(wd::WalkData, c::Circuit)
     @info "$(cnt) new mixed cells (possible duplicates)"
 end
 
-function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int, sgn::Bool)
+function mixed_cell_flip(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, sgn::Bool)
 
     Mloc = localize(M, m.inds[1:act_index-1])
 
     inds = if act_index == length(m)
         excld = isone(act_index) ? Int[] : vcat(m.inds[1:act_index-1]...)
-        setdiff(union(m.inds[act_index], c.inds), excld)
+        setdiff(union(m.inds[act_index], nz_inds(c)), excld)
     else
         vcat(m.inds[act_index], m.inds[act_index + 1])
     end
@@ -154,7 +154,7 @@ end
 
 function compute_active_walls!(m::MixedCell,
                                M::MCI,
-                               walls::Dict{Circuit, Set{Tuple{MixedCell, Int, Bool}}})
+                               walls::Dict{Hyperplane, Set{Tuple{MixedCell, Int, Bool}}})
 
     k = length(m)
     n = ambient_dim(M)
@@ -218,7 +218,7 @@ function compute_active_walls!(m::MixedCell,
             c_cfs_modP[projection_to_A[ind]] += K_modP[j, 1]
             c_cfs_Fl[projection_to_A[ind]] += K_Fl[j, 1]
         end
-        c = Circuit(c_cfs_modP, c_cfs_Fl)
+        c = Hyperplane(c_cfs_modP, c_cfs_Fl)
         sgn = signbit(first(partial_sum(m.inds[act_index], c)))
         add_to_dict!(walls, c, (m, act_index, sgn))
     end

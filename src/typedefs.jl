@@ -30,24 +30,34 @@ end
 
 # --- Circuit --- #
 
-struct Circuit
-    inds::Vector{Int}
-    cfs_modP::Vector{FqFieldElem}
+struct Hyperplane
+    cfs_P::Vector{FqFieldElem}
     cfs_fl::Vector{Float64}
 
-    function Circuit(cfs_modP::Vector{FqFieldElem}, cfs_fl::Vector{Float64})
-        inds = findall(!iszero, cfs_modP)
-        ni = first(inds)
-        return new(inds, cfs_modP[ni]^(-1) .* cfs_modP[inds], cfs_fl[ni]^(-1) .* cfs_fl[inds])
+    function Hyperplane(cfs_P::Vector{FqFieldElem}, cfs_fl::Vector{Float64})
+        ni = findfirst(!iszero, cfs_P)
+        return new(cfs_P[ni]^(-1) .* cfs_P, cfs_fl[ni]^(-1) .* cfs_fl)
     end
 end
 
-function Base.:(==)(c1::Circuit, c2::Circuit)
-    return c1.inds == c2.inds && c1.cfs_modP == c2.cfs_modP
+function Base.length(c::Hyperplane)
+    return length(c.cfs_P)
 end
 
-function Base.hash(c::Circuit, h::UInt)
-    return hash(c.inds, hash(c.cfs_modP, h))
+function Base.:(==)(c1::Hyperplane, c2::Hyperplane)
+    return c1.cfs_P == c2.cfs_P
+end
+
+function mult(cf_P::FqFieldElem, cf_fl::Float64, c::Hyperplane)
+    return Hyperplane(cf_P .* c.cfs_P, cf_fl .* c.cfs_fl)
+end
+
+function Base.hash(c::Hyperplane, h::UInt)
+    return hash(c.cfs_P, h)
+end
+
+function prime_field(c::Hyperplane)
+    return parent(first(c.cfs_P))
 end
 
 # --- MCI --- #
@@ -117,26 +127,15 @@ end
 
 struct WalkData
     M::MCI
-    walls::Dict{Circuit, Set{Tuple{MixedCell, Int, Bool}}}
+    walls::Dict{Hyperplane, Set{Tuple{MixedCell, Int, Bool}}}
 end
 
 function WalkData(M::MCI,
                   initial_mixed_cells::Vector{MixedCell})
 
-    walls = Dict{Circuit, Set{Tuple{MixedCell, Int, Bool}}}()
+    walls = Dict{Hyperplane, Set{Tuple{MixedCell, Int, Bool}}}()
     for m in initial_mixed_cells
         compute_active_walls!(m, M, walls)
     end
     return WalkData(M, walls)
 end
-
-# --- HomotopyPath --- #
-
-mutable struct HomotopyPath
-    t_curr::Float64 # current position in path: t_curr * points[1] + (1 - t) * points[2]
-    points::Vector{Vector{Float64}}
-end
-
-Base.length(path::HomotopyPath) = length(path.points)
-Base.getindex(path::HomotopyPath, i::Int) = path.points[i]
-is_completed(path::HomotopyPath) = isone(Base.length(path))

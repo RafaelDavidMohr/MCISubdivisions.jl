@@ -47,118 +47,80 @@ end
 
 # --- circuits --- #
 
-# potentially to optimize
-function partial_sum(inds::Vector{Int}, c::Circuit)
-    res = 0.0
-    resP = parent(first(c.cfs_modP))(0)
-    for (i, ind) in enumerate(c.inds)
-        if ind in inds
-            res += c.cfs_fl[i]
-            resP += c.cfs_modP[i]
-        end
-    end
-    return res, resP
+function nz_inds(c::Hyperplane)
+    return findall(!iszero, c.cfs_P)
 end
 
-function partial_sum_sign(inds::Vector{Int}, c::Circuit, sgn::Bool)
+function partial_sum(inds::Vector{Int}, c::Hyperplane)
+    return sum(c.cfs_fl[inds]), sum(c.cfs_P[inds])
+end
+
+function partial_sum_sign(inds::Vector{Int}, c::Hyperplane, sgn::Bool)
     res, resP = partial_sum(inds, c)
-    return resP != 0 && (sgn ? res > 0 : res < 0)
+    return resP != 0 && (sgn ? res > 0 : res < 0) # TODO: check if 0 is allowed here
 end
 
-function LinearAlgebra.dot(v::Vector{Float64}, c::Circuit)
-    res = 0.0
-    for (i, ind) in enumerate(c.inds)
-        res += v[ind]*c.cfs_fl[i]
-    end
-    return res
+function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
+    return dot(v, c.cfs_fl), dot(v, c.cfs_P)
 end
 
 # --- homotopy paths --- #
     
-function first_intersection(p0::Vector{Float64},
-                            p1::Vector{Float64},
-                            t0::Float64,
-                            hyperplanes::AbstractSet{Circuit},
-                            h_excluded::Union{Nothing, Circuit}) 
+function first_intersection(p0::Vector{Int}, p1::Vector{Int},
+                            hyperplanes::AbstractSet{Hyperplane},
+                            last_h::Union{Nothing, Hyperplane})
 
-    d = p1 - p0
+    mlh_fl, mlh_P = isnothing(last_h) ? (Inf, nothing) : dot(p1, last_h)
 
-    best_t = Inf
     best_h = nothing
+    mbh_fl, mbh_P = Inf, nothing
 
     for c in hyperplanes
-        c == h_excluded && continue
-        denom = dot(d, c)
-        @assert abs(denom) > 1e-12 "Path not generic enough!"
-        t = -(dot(p0, c)) / denom
-        if t0 < t <= 1 && t < best_t # t0 explicitly excluded
-            best_t = t
-            best_h = c
+        mc_fl, mc_P = dot(p1, c)
+        iszero(mc_P) && continue
+        if isnothing(last_h) || !lt_refined(p0, c, last_h, mlh_fl, mlh_P, mc_fl, mc_P)
+            if isnothing(best_h) || lt_refined(p0, c, best_h, mc_fl, mc_P, mbh_fl, mbh_P)
+                best_h = c
+                mbh_fl = mc_fl
+                mbh_P = mc_P
+            end
         end
     end
 
-    return best_t, best_h
+    return best_h
 end
+    
+# c1 < c2 in lexicographic order refined by d flipped
+function lt_refined(d::Vector{Int}, c1::Hyperplane, c2::Hyperplane,
+                    m1_fl::Float64, m1_P::FqFieldElem,
+                    m2_fl::Float64, m2_P::FqFieldElem)
 
-function path_length(path::HomotopyPath)
-    points = path.points
-    total = 0.0
-    for i in 1:(length(points)-1)
-        total += norm(points[i+1] - points[i])
+    d1_fl, d1_P = (m1_fl, m1_P) .* dot(d, c1)
+    d2_fl, d2_P = (m2_fl, m2_P) .* dot(d, c2)
+    if d1_P != d2_P
+        return d1_fl > d2_fl
     end
-    return total
-end
 
-function piecewice_linear_path(p0::Vector{Float64},
-                               p1::Vector{Float64},
-                               nsegs=length(p0)::Int) 
-
-    eps = 1e-2
-    points = Vector{Float64}[]
-
-    push!(points, p0)
-    for i in 1:nsegs-1
-        shifts = (2 .* rand(length(p0)) .- 1) .* eps # random numbers in [-eps,eps]
-        pt = (p0 .+ (i/nsegs) .* (p1 - p0)) + shifts
-        push!(points, pt)
-    end
-    push!(points, p1)
-
-    return HomotopyPath(0.0, points)
-end
-
-function first_intersection_with_path!(path::HomotopyPath,
-                                       hyperplanes::AbstractSet{Circuit},
-                                       h_excluded::Union{Nothing, Circuit}) 
-
-    n = length(path)
-
-    h_int = nothing
-    while isnothing(h_int) && !is_completed(path)
-        p1, p2 = path[1], path[2]
-        t_int, h_int = first_intersection(p1, p2, path.t_curr, hyperplanes, h_excluded)
-        if isnothing(h_int)
-            popfirst!(path.points)
-            path.t_curr = 0.0
-        else
-            path.t_curr = t_int
+    for i in 1:length(c1)
+        c1e_P = m1_P * c1.cfs_P[i]
+        c2e_P = m2_P * c2.cfs_P[i]
+        if c1e_P != c2e_P
+            return m1_fl * c1.cfs_fl[i] > m2_fl * c2.cfs_fl[i]
         end
     end
 
-    return h_int
+    return true # error check here?
 end
 
 # --- other helpers --- #
 
 function forgetful_lift(A_size::Int, forget_inds::Vector{Int})
-    eps = 1e-3
-    d = Vector{Float64}(undef, A_size)
-    w = rand(50:100, A_size)
+    d = Vector{Int}(undef, A_size)
     for i in 1:A_size
         if i in forget_inds
-            d[i] = -100 + eps*w[i]
+            d[i] = 0
         else
-            d[i] = eps*w[i]
+            d[i] = 1
         end
     end
     return d
