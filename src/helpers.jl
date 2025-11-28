@@ -41,8 +41,8 @@ end
 
 function is_affine_independent(A::Matrix{C}, inds::Vector{Int}) where C
     F = parent(first(A))
-    A_aff = vcat(A[:, inds], transpose([F(1) for _ in 1:length(inds)]))
-    return rank(matrix(F, A_aff)) == length(inds)
+    L = linear_span(A, inds)
+    return rank(matrix(F, L)) == length(inds) - 1
 end
 
 # --- circuits --- #
@@ -150,6 +150,20 @@ end
 
 # --- other helpers --- #
 
+function forgetful_lift(A_size::Int, forget_inds::Vector{Int})
+    eps = 1e-3
+    d = Vector{Float64}(undef, A_size)
+    w = rand(50:100, A_size)
+    for i in 1:A_size
+        if i in forget_inds
+            d[i] = -100 + eps*w[i]
+        else
+            d[i] = eps*w[i]
+        end
+    end
+    return d
+end
+
 function get_eci_data(F::Vector{<:MPolyRingElem})
     exps = unique(vcat([collect(exponents(f)) for f in F]...))
     A = hcat(exps...)
@@ -177,4 +191,12 @@ function add_to_dict!(d::Dict{T, Set{S}}, k::T, v::S) where {T, S}
     else
         d[k] = Set([v])
     end
+end
+
+function compose_as_maps(m1::Vector{Int}, m2::Vector{Int})
+    result = similar(m2)
+    for (j, i) in enumerate(m2)
+        result[j] = m1[i]
+    end
+    return result
 end

@@ -17,6 +17,13 @@ function mixed_volume(F::Vector{<:MPolyRingElem})
     return mixed_volume(A, V)
 end
 
+function mixed_subdivision(F::Vector{<:MPolyRingElem})
+    R = parent(first(F))
+    @assert ngens(R) == length(F) "Input system not square"
+    A, V = get_eci_data(F)
+    A, mixed_subdivision(A, V)
+end
+
 function mixed_volume(A::Matrix{Int}, V::Matrix{C}) where C
     cells = mixed_subdivision(A, V)
     return sum([vol(m, A) for m in cells])
@@ -28,6 +35,7 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     rand_mix = matrix(F, (F).(rand(1:characteristic(F)-1, size(V, 1), size(V, 1))))
     Vp = Matrix(rand_mix * matrix(F, Vp))
     wd, path = total_degree_homotopy(A, Vp)
+    p1 = last(path.points)
 
     walk_homotopy!(wd, path)
 
@@ -35,7 +43,8 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     result = Set{MixedCell}()
     for c in keys(wd.walls)
         for (m, act_index, sgn) in wd.walls[c]
-            any(S -> any(i -> i > A_size, S), m.inds) && continue
+            @assert is_in_mixed_cell_cone(wd, m, p1)
+            # any(S -> any(i -> i > A_size, S), m.inds) && continue
             push!(result, m)
         end
     end
@@ -78,12 +87,10 @@ function total_degree_homotopy(A::Matrix{Int}, V::Matrix{FqFieldElem})
     M = MCI(V_ext, A_ext)
 
     # set up path
-    p0 = vcat(zeros(Float64, A_size),
-              ones(Float64, n+1) + rand(n+1))
-    p1 = vcat(ones(Float64, A_size) + rand(A_size),
-              zeros(Float64, n+1))
+    p0 = forgetful_lift(A_size + n + 1, collect(1:A_size))
+    p1 = forgetful_lift(A_size + n + 1, collect(A_size+1:A_size+n+1))
 
-    path = piecewice_linear_path(p0, p1, 1)
+    path = piecewice_linear_path(p0, p1, 4)
 
     # initial mixed cell
     init_mc = MixedCell([collect(A_size+1:A_size+n+1)])
@@ -111,7 +118,7 @@ end
 
 function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int, sgn::Bool)
 
-    A_loc, V_loc, rem_inds, ind_map = localize(M.A_modP, M.V, m.inds[1:act_index-1])
+    Mloc = localize(M, m.inds[1:act_index-1])
 
     inds = if act_index == length(m)
         excld = isone(act_index) ? Int[] : vcat(m.inds[1:act_index-1]...)
@@ -120,15 +127,15 @@ function mixed_cell_flip(m::MixedCell, c::Circuit, M::MCI, act_index::Int, sgn::
         vcat(m.inds[act_index], m.inds[act_index + 1])
     end
 
-    matr = matroid_from_matrix_columns(matrix(prime_field_V(M), V_loc))
-    matr = restriction(matr, [ind_map[i] for i in inds])
-
+    Mloc = restrict(Mloc, inds)
     Ss_new = Vector{Int}[]
 
-    for S_new in circuits(matr)
-        S_new_A_inds = rem_inds[S_new]
-        if partial_sum_sign(S_new_A_inds, c, sgn) && is_affine_independent(A_loc, S_new)
-            push!(Ss_new, S_new_A_inds)
+    for S_new in circuits(Mloc)
+        isone(length(S_new)) && continue
+        S_new_rel = Mloc.base_to_rel[S_new]
+        sort!(S_new)
+        if partial_sum_sign(S_new, c, sgn) && is_affine_independent(Mloc.A_rel, S_new_rel)
+            push!(Ss_new, S_new)
         end
     end
 
@@ -219,28 +226,33 @@ end
 
 # --- MCI functions --- #
 
-function localize(A::Matrix{FqFieldElem}, V::Matrix{FqFieldElem}, S::Vector{Int})
-    L = linear_span(A, S)
-    rem_inds = setdiff(collect(1:size(A, 2)), S)
-    A_new = project_along_linear_space(L, A[:, rem_inds], length(S) - 1)
-    V_new = project_along_linear_space(V[:, S], V[:, rem_inds], length(S) - 1)
-    ind_map = Dict{Int, Int}()
-    for (i, j) in enumerate(rem_inds)
-        ind_map[j] = i
-    end
-    return A_new, V_new, rem_inds, ind_map
+function localize(M::RelativeMCI, S::Vector{Int})
+    S_rel = M.base_to_rel[S]
+    A = M.A_rel
+    V = M.V_rel
+    L = linear_span(A, S_rel)
+    rem_inds = setdiff(indices(M), S_rel)
+    A_new = project_along_linear_space(L, A[:, rem_inds], length(S_rel) - 1)
+    V_new = project_along_linear_space(V[:, S_rel], V[:, rem_inds], length(S_rel) - 1)
+    rel_to_base = compose_as_maps(M.rel_to_base, rem_inds)
+    return RelativeMCI(M.base, A_new, V_new, rel_to_base)
 end
 
-function localize(A::Matrix{FqFieldElem}, V::Matrix{FqFieldElem}, m::Vector{Vector{Int}})
-    A_curr, V_curr, rem_inds = A, V, collect(1:size(A,2))
+function localize(M::RelativeMCI, m::Vector{Vector{Int}})
+    M_curr = M
     for S in m
-        A_curr, V_curr, rem_inds, _ = localize(A_curr, V_curr, S)
+        M_curr = localize(M, S)
     end
-    ind_map = Dict{Int, Int}()
-    for (i, j) in enumerate(rem_inds)
-        ind_map[j] = i
-    end
-    return A_curr, V_curr, rem_inds, ind_map
+    return M_curr
+end
+
+function localize(M::MCI, m::Vector{Vector{Int}})
+    return localize(RelativeMCI(M), m)
+end
+
+function restrict(M::RelativeMCI, S::Vector{Int})
+    S_rel = M.base_to_rel[S]
+    return RelativeMCI(M.base, M.A_rel[:, S_rel], M.V_rel[:, S_rel], M.rel_to_base[S_rel])
 end
 
 # --- Mixed cell checking/computation for testing --- #
@@ -345,10 +357,35 @@ function is_partial_mixed_cell(A::Matrix{FqFieldElem},
 end
 
 function is_in_mixed_cell_cone(wd::WalkData, m::MixedCell, d::Vector{Float64})
-    for c in keys(wd.walls)
-        for (m0, _, sgn) in wd.walls[c]
-            m0 == m && (sgn ? dot(d, c) > 0 : dot(d, c) < 0) && return false
+    d_qq = (QQ).((rationalize).(d))
+    _, w = outer_normal_vector(wd.M, m, d_qq)
+    sinds = sort(indices(wd.M), by = i -> dot(w, wd.M.A_Fl[:, i]) + d[i], rev = true)
+    ml = sum((length).(m.inds))
+    # println(sinds[1:ml])
+    # println(m)
+    # println(m)
+    # for i in indices(M)
+    tst = true
+    k = 0
+    for S in m.inds
+        tst = tst && S == sort(sinds[1+k:length(S)+k])
+        k += length(S)
+    end
+
+    if !tst
+    # println("----")
+        tst2 = true
+        for c in keys(wd.walls)
+            for (m0, _, sgn) in wd.walls[c]
+                if m0 == m
+                    tst2 = tst2 && (sgn ? dot(d, c) > 0 : dot(d, c) < 0)
+                end
+            end
         end
+        if tst2
+            @info "inconsistent test result"
+        end
+        return false
     end
     return true
 end

@@ -1,3 +1,5 @@
+# --- Mixed Cell --- #
+
 struct MixedCell
     inds::Vector{Vector{Int}}
 end
@@ -26,6 +28,8 @@ function Base.show(io::IO, ::MIME"text/plain", m::MixedCell)
     print(io, "Mixed cell of dimension $(dims)")
 end
 
+# --- Circuit --- #
+
 struct Circuit
     inds::Vector{Int}
     cfs_modP::Vector{FqFieldElem}
@@ -46,6 +50,8 @@ function Base.hash(c::Circuit, h::UInt)
     return hash(c.inds, hash(c.cfs_modP, h))
 end
 
+# --- MCI --- #
+
 struct MCI
     V::Matrix{FqFieldElem} # stored over random finite field to speed up computations
     A_modP::Matrix{FqFieldElem}
@@ -58,6 +64,30 @@ struct MCI
     end
 end
 
+struct RelativeMCI
+    base::MCI
+    A_rel::Matrix{FqFieldElem}
+    V_rel::Matrix{FqFieldElem}
+    base_to_rel::Vector{Int}
+    rel_to_base::Vector{Int}
+
+    function RelativeMCI(base::MCI, A_rel::Matrix{FqFieldElem},
+                         V_rel::Matrix{FqFieldElem},
+                         rel_to_base::Vector{Int})
+
+        base_to_rel = similar(rel_to_base)
+        base_to_rel = zeros(Int, size(base.A_modP, 2))
+        for (i, j) in enumerate(rel_to_base)
+            base_to_rel[j] = i
+        end
+        return new(base, A_rel, V_rel, base_to_rel, rel_to_base)
+    end
+end
+
+function RelativeMCI(M::MCI)
+    return RelativeMCI(M, M.A_modP, M.V, indices(M))
+end
+
 function MCI(V::Matrix{C}, A::Matrix{Int64}) where C
     Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
     A_modP = reduce_mod_rand_prime(A)
@@ -66,12 +96,24 @@ function MCI(V::Matrix{C}, A::Matrix{Int64}) where C
     return MCI(Vp, A_modP, A_Fl)
 end
 
+function circuits(M::RelativeMCI)
+    F = prime_field_V(M)
+    matr = matroid_from_matrix_columns(matrix(F, M.V_rel))
+    return (c -> M.rel_to_base[c]).(Oscar.circuits(matr))
+end
+
+indices(M::MCI) = collect(1:size(M.A_modP, 2))
+indices(M::RelativeMCI) = collect(1:size(M.A_rel, 2))
+
 prime_field_A(M::MCI) = parent(first(M.A_modP))
 prime_field_V(M::MCI) = parent(first(M.V))
+prime_field_V(M::RelativeMCI) = parent(first(M.V_rel))
 
 function ambient_dim(M::MCI)
     return size(M.A_modP, 1)
 end
+
+# --- WalkData --- # 
 
 struct WalkData
     M::MCI
@@ -87,6 +129,8 @@ function WalkData(M::MCI,
     end
     return WalkData(M, walls)
 end
+
+# --- HomotopyPath --- #
 
 mutable struct HomotopyPath
     t_curr::Float64 # current position in path: t_curr * points[1] + (1 - t) * points[2]
