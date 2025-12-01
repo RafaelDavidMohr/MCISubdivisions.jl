@@ -3,13 +3,10 @@
 function find_nonzero_indices(V::Matrix{C}, inds::Vector{Int}, test_inds::Vector{Int},
                               V_rank::Int) where C
 
-    isempty(inds) && return test_inds
-    F = parent(first(V))
-    RV = Matrix(echelon_form(matrix(F, V[:, inds])))
     res = Int[]
-    for i in test_inds
-        RV_ext = echelon_form(matrix(F, hcat(RV, V[:, i])))
-        !iszero(RV_ext[V_rank+1:end, end]) && push!(res, i)
+    Proj = project_along_linear_space(V[:, inds], V[:, test_inds], V_rank)
+    for i in 1:size(Proj, 2)
+        !iszero(Proj[:, i]) && push!(res, test_inds[i])
     end
     return res
 end
@@ -60,10 +57,31 @@ end
 function project_along_linear_space(V::Matrix{C}, W::Matrix{C}, V_rank::Int) where C
 
     isempty(V) && return W
-    VW = hcat(V, W)
+
     F = parent(first(V))
-    R = echelon_form(matrix(F, VW))
-    return Matrix(R[V_rank + 1:end, size(V, 2) + 1:end])
+    result = zeros(F, size(V, 1) - V_rank, 0)
+    RV = Matrix(echelon_form(matrix(F, transpose(V))))
+    max_dim = min(size(RV, 1), size(RV, 2))
+
+    pivots = Dict{Int, Int}()
+    for i in 1:size(RV, 1)
+        j = findfirst(l -> !iszero(RV[i, l]), 1:size(RV, 2))
+        isnothing(j) && continue
+        pivots[j] = i
+    end
+    non_pivot_inds = setdiff(1:size(RV, 2), keys(pivots))
+
+    for i in 1:size(W, 2)
+        red = W[:, i]
+        for j in 1:length(red)
+            if !iszero(red[j]) && haskey(pivots, j)
+                p = pivots[j]
+                red = red - red[j] .* RV[p, :]
+            end
+        end
+        result = hcat(result, red[non_pivot_inds])
+    end
+    return result
 end
 
 function linear_span(A::Matrix{C}, inds::Vector{Int}) where C

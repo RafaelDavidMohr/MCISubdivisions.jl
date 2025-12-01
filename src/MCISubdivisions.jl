@@ -117,9 +117,13 @@ function mixed_cell_flip(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, sg
 
     # indices from which new mixed cell component can come
     # todo: if this doesnt work check if this is correct
-    excld = act_index == length(m.inds) ? Int[] : m.loc_inds[act_index+1]
-    inds = restrict(union(m.inds[act_index], nz_inds(c)),
-                    cayley_indices(m, act_index))
+    new_inds = setdiff(nz_inds(c), vcat(m.inds...))
+    is_exchange = !isempty(new_inds)
+    inds = if is_exchange 
+        sort(union(m.inds[act_index], new_inds))
+    else
+        sort(vcat(m.inds[act_index], m.inds[act_index+1]))
+    end
 
     Mloc = restrict(Mloc, inds)
     Ss_new = Vector{Int}[]
@@ -135,15 +139,18 @@ function mixed_cell_flip(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, sg
 
     new_mixed_cells = MixedCell[]
     for S_new in Ss_new
-        S_new_next = setdiff(inds, S_new)
+        S_new_next = sort(setdiff(inds, S_new))
+        next_ind = is_exchange ? act_index + 1 : act_index + 2
         if length(S_new_next) > 1
             new_ms_inds = [m.inds[1:act_index-1]..., S_new, S_new_next,
-                           m.inds[act_index + 2:end]...]
+                           m.inds[next_ind:end]...]
+            # println("new MC $(new_ms_inds)")
             push!(new_mixed_cells, MixedCell(new_ms_inds, M))
         else
             new_ms_inds = [m.inds[1:act_index-1]..., S_new,
-                           m.inds[act_index + 2:end]...]
+                           m.inds[next_ind:end]...]
             push!(new_mixed_cells, MixedCell(new_ms_inds, M))
+            # println("new MC $(new_ms_inds)")
         end
     end
 
