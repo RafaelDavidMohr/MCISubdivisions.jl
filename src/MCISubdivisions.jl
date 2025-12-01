@@ -144,13 +144,11 @@ function mixed_cell_flip(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, sg
         if length(S_new_next) > 1
             new_ms_inds = [m.inds[1:act_index-1]..., S_new, S_new_next,
                            m.inds[next_ind:end]...]
-            # println("new MC $(new_ms_inds)")
             push!(new_mixed_cells, MixedCell(new_ms_inds, M))
         else
             new_ms_inds = [m.inds[1:act_index-1]..., S_new,
                            m.inds[next_ind:end]...]
             push!(new_mixed_cells, MixedCell(new_ms_inds, M))
-            # println("new MC $(new_ms_inds)")
         end
     end
 
@@ -173,10 +171,6 @@ function compute_active_walls!(m::MixedCell,
     projection_to_A = Dict{Int, Int}()
 
     # build cayley configuration
-    # Here: to the ith part of the Cayley configuration we just need to add
-    # the first element of S_i+1. To the last part of the Cayley configuration
-    # we add all the elements that lie outside of S1 u ... u Sk
-    # TODO: this loop can probably be optimized
     end_index = 0
     m_shift_i = Int[]
     for i in 1:k

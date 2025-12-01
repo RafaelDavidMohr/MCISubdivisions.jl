@@ -34,10 +34,9 @@ end
 function cayley_indices(m::MixedCell, j::Int)
     if j == length(m)
         return m.loc_inds[j]
-    else
-        res = setdiff(m.loc_inds[j], m.loc_inds[j+1])
-        return sort(vcat(res, m.inds[j+1]))
     end
+    res = setdiff(m.loc_inds[j], m.loc_inds[j+1])
+    return sort(vcat(res, [first(m.inds[j+1])]))
 end
 
 # --- matrix --- #
@@ -59,36 +58,58 @@ function project_along_linear_space(V::Matrix{C}, W::Matrix{C}, V_rank::Int) whe
     isempty(V) && return W
 
     F = parent(first(V))
-    result = zeros(F, size(V, 1) - V_rank, 0)
     RV = Matrix(echelon_form(matrix(F, transpose(V))))
-    max_dim = min(size(RV, 1), size(RV, 2))
 
-    pivots = Dict{Int, Int}()
-    for i in 1:size(RV, 1)
-        j = findfirst(l -> !iszero(RV[i, l]), 1:size(RV, 2))
-        isnothing(j) && continue
-        pivots[j] = i
-    end
-    non_pivot_inds = setdiff(1:size(RV, 2), keys(pivots))
-
-    for i in 1:size(W, 2)
-        red = W[:, i]
-        for j in 1:length(red)
-            if !iszero(red[j]) && haskey(pivots, j)
-                p = pivots[j]
-                red = red - red[j] .* RV[p, :]
+    pivot_cols = falses(size(RV, 2))
+    pivot_rows = zeros(Int, size(RV, 2))
+    @inbounds for i in 1:size(RV, 1)
+        for j in 1:size(RV, 2)
+            if !iszero(RV[i, j])
+                pivot_cols[j] = true
+                pivot_rows[j] = i
+                break
             end
         end
-        result = hcat(result, red[non_pivot_inds])
     end
+
+    non_pivot_count = size(RV, 2) - count(pivot_cols)
+    non_pivot_inds = Vector{Int}(undef, non_pivot_count)
+    idx = 1
+    @inbounds for j in 1:size(RV, 2)
+        if !pivot_cols[j]
+            non_pivot_inds[idx] = j
+            idx += 1
+        end
+    end
+
+    result = Matrix{C}(undef, size(V, 1) - V_rank, size(W, 2))
+    red = Vector{C}(undef, size(W, 1))
+
+    @inbounds for i in 1:size(W, 2)
+        for j in 1:size(W, 1)
+            red[j] = W[j, i]
+        end
+
+        for j in 1:size(W, 1)
+            if !iszero(red[j]) && pivot_cols[j]
+                pind = pivot_rows[j]
+                for k in j+1:size(W,1)
+                    red[k] = red[k] - red[j] * RV[pind, k]
+                end
+                red[j] = F(0)
+            end
+        end
+        result[:, i] = red[non_pivot_inds]
+    end
+
     return result
 end
 
 function linear_span(A::Matrix{C}, inds::Vector{Int}) where C
     a0 = A[:, first(inds)]
-    L = Matrix{C}(undef, size(A, 1), 0)
-    for i in inds[2:end]
-        L = hcat(L, A[:, i] - a0)
+    L = Matrix{C}(undef, size(A, 1), length(inds) - 1)
+    for (j, i) in enumerate(inds[2:end])
+        L[:, j] = A[:, i] - a0
     end
     return L
 end
