@@ -1,11 +1,46 @@
 # --- mixed cells --- #
 
+function find_nonzero_indices(V::Matrix{C}, inds::Vector{Int}, test_inds::Vector{Int},
+                              V_rank::Int) where C
+
+    isempty(inds) && return test_inds
+    F = parent(first(V))
+    RV = Matrix(echelon_form(matrix(F, V[:, inds])))
+    res = Int[]
+    for i in test_inds
+        RV_ext = echelon_form(matrix(F, hcat(RV, V[:, i])))
+        !iszero(RV_ext[V_rank+1:end, end]) && push!(res, i)
+    end
+    return res
+end
+
+function MixedCell(inds::Vector{Vector{Int}}, M::MCI)
+    loc_inds = Vector{Int}[]
+    for i in 1:length(inds)
+        rem_inds = setdiff(indices(M), vcat(inds[1:i-1]...))
+        rk = sum((length).(inds[1:i-1])) - (i - 1)
+        loc_inds_i = isone(i) ? rem_inds : find_nonzero_indices(M.V, vcat(inds[1:i-1]...), rem_inds, rk)
+        sort!(loc_inds_i)
+        push!(loc_inds, loc_inds_i)
+    end
+    return MixedCell(inds, loc_inds)
+end
+
 function vol(m::MixedCell, A::Matrix{Int})
     res = 1
     for S in m.inds
         res *= lattice_volume(convex_hull(transpose(A[:, S])))
     end
     return res
+end
+
+function cayley_indices(m::MixedCell, j::Int)
+    if j == length(m)
+        return m.loc_inds[j]
+    else
+        res = setdiff(m.loc_inds[j], m.loc_inds[j+1])
+        return sort(vcat(res, m.inds[j+1]))
+    end
 end
 
 # --- matrix --- #
@@ -24,9 +59,10 @@ end
 
 function project_along_linear_space(V::Matrix{C}, W::Matrix{C}, V_rank::Int) where C
 
+    isempty(V) && return W
     VW = hcat(V, W)
     F = parent(first(V))
-    R = echelon_form(matrix(F, VW), reduced = false)
+    R = echelon_form(matrix(F, VW))
     return Matrix(R[V_rank + 1:end, size(V, 2) + 1:end])
 end
 
@@ -64,25 +100,23 @@ function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
     return dot(v, c.cfs_fl), dot(v, c.cfs_P)
 end
 
+function LinearAlgebra.dot(v::Vector{Float64}, c::Hyperplane)
+    return dot(v, c.cfs_fl)
+end
+
 # --- homotopy paths --- #
     
 function first_intersection(p0::Vector{Int}, p1::Vector{Int},
                             hyperplanes::AbstractSet{Hyperplane},
                             last_h::Union{Nothing, Hyperplane})
 
-    mlh_fl, mlh_P = isnothing(last_h) ? (Inf, nothing) : dot(p1, last_h)
-
     best_h = nothing
-    mbh_fl, mbh_P = Inf, nothing
 
     for c in hyperplanes
-        mc_fl, mc_P = dot(p1, c)
-        iszero(mc_P) && continue
-        if isnothing(last_h) || !lt_refined(p0, c, last_h, mlh_fl, mlh_P, mc_fl, mc_P)
-            if isnothing(best_h) || lt_refined(p0, c, best_h, mc_fl, mc_P, mbh_fl, mbh_P)
+        !(does_cross(p0, p1, c)) && continue
+        if isnothing(last_h) || !lt_refined(p0, p1, last_h, c)
+            if isnothing(best_h) || lt_refined(p0, p1, best_h, c)
                 best_h = c
-                mbh_fl = mc_fl
-                mbh_P = mc_P
             end
         end
     end
@@ -90,13 +124,14 @@ function first_intersection(p0::Vector{Int}, p1::Vector{Int},
     return best_h
 end
     
-# c1 < c2 in lexicographic order refined by d flipped
-function lt_refined(d::Vector{Int}, c1::Hyperplane, c2::Hyperplane,
-                    m1_fl::Float64, m1_P::FqFieldElem,
-                    m2_fl::Float64, m2_P::FqFieldElem)
+# c1 < c2 in lexicographic order refined by p0
+function lt_refined(p0::Vector{Int}, p1::Vector{Int}, c1::Hyperplane, c2::Hyperplane)
 
-    d1_fl, d1_P = (m1_fl, m1_P) .* dot(d, c1)
-    d2_fl, d2_P = (m2_fl, m2_P) .* dot(d, c2)
+    m1_fl, m1_P = dot(p1, c1) .^ (-1)
+    m2_fl, m2_P = dot(p1, c2) .^ (-1)
+
+    d1_fl, d1_P = (m1_fl, m1_P) .* dot(p0, c1)
+    d2_fl, d2_P = (m2_fl, m2_P) .* dot(p0, c2)
     if d1_P != d2_P
         return d1_fl > d2_fl
     end
@@ -112,7 +147,30 @@ function lt_refined(d::Vector{Int}, c1::Hyperplane, c2::Hyperplane,
     return true # error check here?
 end
 
+function does_cross(p0::Vector{Int}, p1::Vector{Int}, c::Hyperplane)
+    p0c, _ = dot(p0, c)
+    p1c, p1c_P = dot(p1, c)
+    iszero(p1c_P) && return false
+    return signbit(p0c) ⊻ signbit(p1c)
+end
+
+function crossing_val(p0::Vector{Int}, p1::Vector{Int}, c::Hyperplane)
+    p0c, _ = dot(p0, c)
+    p1c, _ = dot(p1, c)
+    return p0c / (p0c - p1c)
+end
+
 # --- other helpers --- #
+
+# TODO probably: sorted merge
+function restrict(inds::Vector{Int}, restr::Vector{Int})
+    res = Int[]
+    for i in inds
+        !(i in restr) && continue
+        push!(res, i)
+    end
+    return res
+end
 
 function forgetful_lift(A_size::Int, forget_inds::Vector{Int})
     d = Vector{Int}(undef, A_size)

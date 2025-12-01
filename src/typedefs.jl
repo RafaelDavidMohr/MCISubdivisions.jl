@@ -2,6 +2,7 @@
 
 struct MixedCell
     inds::Vector{Vector{Int}}
+    loc_inds::Vector{Vector{Int}}
 end
 
 # Not sure why we have to overload this

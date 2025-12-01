@@ -36,17 +36,12 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     Vp = Matrix(rand_mix * matrix(F, Vp))
     A_ext, wd, p0, p1 = total_degree_homotopy(A, Vp)
 
-    start_cell = first(first(wd.walls[first(keys(wd.walls))]))
-    test_vol = vol(start_cell, A_ext)
-    println(test_vol)
-
     walk_homotopy!(wd, p0, p1)
 
     A_size = size(A, 2)
     result = Set{MixedCell}()
     for c in keys(wd.walls)
         for (m, act_index, sgn) in wd.walls[c]
-            # @assert is_in_mixed_cell_cone(wd, m, p1)
             any(S -> any(i -> i > A_size, S), m.inds) && continue
             push!(result, m)
         end
@@ -93,7 +88,7 @@ function total_degree_homotopy(A::Matrix{Int}, V::Matrix{FqFieldElem})
     p1 = forgetful_lift(A_size + n + 1, collect(A_size+1:A_size+n+1))
 
     # initial mixed cell
-    init_mc = MixedCell([collect(A_size+1:A_size+n+1)])
+    init_mc = MixedCell([collect(A_size+1:A_size+n+1)], M)
     wd = WalkData(M, [init_mc])
 
     return A_ext, wd, p0, p1
@@ -118,20 +113,19 @@ end
 
 function mixed_cell_flip(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, sgn::Bool)
 
-    Mloc = localize(M, m.inds[1:act_index-1])
+    Mloc = localize(M, m, act_index-1)
 
-    inds = if act_index == length(m)
-        excld = isone(act_index) ? Int[] : vcat(m.inds[1:act_index-1]...)
-        setdiff(union(m.inds[act_index], nz_inds(c)), excld)
-    else
-        vcat(m.inds[act_index], m.inds[act_index + 1])
-    end
+    # indices from which new mixed cell component can come
+    # todo: if this doesnt work check if this is correct
+    excld = act_index == length(m.inds) ? Int[] : m.loc_inds[act_index+1]
+    inds = restrict(union(m.inds[act_index], nz_inds(c)),
+                    cayley_indices(m, act_index))
 
     Mloc = restrict(Mloc, inds)
     Ss_new = Vector{Int}[]
 
     for S_new in circuits(Mloc)
-        isone(length(S_new)) && continue
+        @assert !isone(length(S_new)) "Circuit of length one in localization"
         S_new_rel = Mloc.base_to_rel[S_new]
         sort!(S_new)
         if partial_sum_sign(S_new, c, sgn) && is_affine_independent(Mloc.A_rel, S_new_rel)
@@ -143,9 +137,13 @@ function mixed_cell_flip(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, sg
     for S_new in Ss_new
         S_new_next = setdiff(inds, S_new)
         if length(S_new_next) > 1
-            push!(new_mixed_cells, MixedCell([m.inds[1:act_index-1]..., S_new, S_new_next, m.inds[act_index + 2:end]...]))
+            new_ms_inds = [m.inds[1:act_index-1]..., S_new, S_new_next,
+                           m.inds[act_index + 2:end]...]
+            push!(new_mixed_cells, MixedCell(new_ms_inds, M))
         else
-            push!(new_mixed_cells, MixedCell([m.inds[1:act_index-1]..., S_new, m.inds[act_index + 2:end]...]))
+            new_ms_inds = [m.inds[1:act_index-1]..., S_new,
+                           m.inds[act_index + 2:end]...]
+            push!(new_mixed_cells, MixedCell(new_ms_inds, M))
         end
     end
 
@@ -177,18 +175,16 @@ function compute_active_walls!(m::MixedCell,
     for i in 1:k
         apd_modP = [j == i ? one(F) : zero(F) for j in 1:k]
         apd_Fl = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
-        add_indices = if i < k
-            vcat(m.inds[i], [first(m.inds[i+1])])
-        else
-            vcat(m.inds[i], setdiff(collect(1:size(M.A_modP, 2)), vcat(m.inds...)))
-        end
+        add_indices = cayley_indices(m, i)
         for (l, j) in enumerate(add_indices)
             if j in m.inds[i]
                 push!(m_shift_i, l + end_index)
             end
             projection_to_A[l + end_index] = j
-            caley_config_modP = hcat(caley_config_modP, vcat(M.A_modP[:, j], apd_modP))
-            caley_config_Fl = hcat(caley_config_Fl, vcat(M.A_Fl[:, j], apd_Fl))
+            caley_config_modP = hcat(caley_config_modP,
+                                     vcat(M.A_modP[:, j], apd_modP))
+            caley_config_Fl = hcat(caley_config_Fl,
+                                   vcat(M.A_Fl[:, j], apd_Fl))
         end
         end_index += length(add_indices)
         append!(shifted_m_indices, m_shift_i)
@@ -206,8 +202,10 @@ function compute_active_walls!(m::MixedCell,
         if iszero(caley_config_modP[n + act_index, i])
             act_index += 1
         end
-        circuit_col_indices = vcat(shifted_m_indices[1:shifted_m_index-1], [i], shifted_m_indices[shifted_m_index:end])
-        K_modP = kernel(matrix(F, caley_config_modP[:, circuit_col_indices]), side = :right)
+        circuit_col_indices = vcat(shifted_m_indices[1:shifted_m_index-1], [i],
+                                   shifted_m_indices[shifted_m_index:end])
+        K_modP = kernel(matrix(F, caley_config_modP[:, circuit_col_indices]),
+                        side = :right)
         K_Fl = nullspace(caley_config_Fl[:, circuit_col_indices])
         @assert size(K_modP, 2) == size(K_Fl, 2) == 1 "unexpected dimension in circuit computation"
         K_modP *= (-K_modP[shifted_m_index, 1]^(-1))
@@ -226,28 +224,28 @@ end
 
 # --- MCI functions --- #
 
-function localize(M::RelativeMCI, S::Vector{Int})
+function localize(M::RelativeMCI, S::Vector{Int}, rem_inds::Vector{Int})
     S_rel = M.base_to_rel[S]
+    rem_inds_rel = M.base_to_rel[rem_inds]
     A = M.A_rel
     V = M.V_rel
     L = linear_span(A, S_rel)
-    rem_inds = setdiff(indices(M), S_rel)
-    A_new = project_along_linear_space(L, A[:, rem_inds], length(S_rel) - 1)
-    V_new = project_along_linear_space(V[:, S_rel], V[:, rem_inds], length(S_rel) - 1)
-    rel_to_base = compose_as_maps(M.rel_to_base, rem_inds)
+    A_new = project_along_linear_space(L, A[:, rem_inds_rel], length(S_rel) - 1)
+    V_new = project_along_linear_space(V[:, S_rel], V[:, rem_inds_rel], length(S_rel) - 1)
+    rel_to_base = compose_as_maps(M.rel_to_base, rem_inds_rel)
     return RelativeMCI(M.base, A_new, V_new, rel_to_base)
 end
 
-function localize(M::RelativeMCI, m::Vector{Vector{Int}})
+function localize(M::RelativeMCI, m::MixedCell, i::Int)
     M_curr = M
-    for S in m
-        M_curr = localize(M, S)
+    for j in 1:i
+        M_curr = localize(M_curr, m.inds[j], m.loc_inds[j])
     end
     return M_curr
 end
 
-function localize(M::MCI, m::Vector{Vector{Int}})
-    return localize(RelativeMCI(M), m)
+function localize(M::MCI, m::MixedCell, i::Int)
+    return localize(RelativeMCI(M), m, i)
 end
 
 function restrict(M::RelativeMCI, S::Vector{Int})
@@ -325,27 +323,25 @@ end
 # checks if m ∪ {S} is a partial mixed cell
 function is_partial_mixed_cell(M::MCI, m::MixedCell)
 
-    inds = copy(m.inds)
-    A, V = M.A_modP, M.V
+    M_curr = RelativeMCI(M)
 
-    for j in 1:length(inds)
-        !is_partial_mixed_cell(A, V, inds[j]) && return false
-        A, V, _, ind_map = localize(A, V, inds[j])
-        for l in j+1:length(inds)
-            inds[l] = [ind_map[a] for a in inds[l]]
-        end
+    for j in 1:length(m.inds)
+        !is_partial_mixed_cell(M_curr, m.inds[j]) && return false
+        M_curr = localize(M_curr, m.inds[j], m.outside_inds[j])
     end
 
     return true
 end
 
-function is_partial_mixed_cell(A::Matrix{FqFieldElem},
-                               V::Matrix{FqFieldElem},
+function is_partial_mixed_cell(M::RelativeMCI,
                                S::Vector{Int})
 
-    if is_affine_independent(A, S)
+    S_rel = M.base_to_rel[S]
+    A = M.A_rel
+    V = M.V_rel
+    if is_affine_independent(A, S_rel)
         F = parent(first(V))
-        V_S = V[:, S]
+        V_S = V[:, S_rel]
         R_S = Oscar.echelon_form(matrix(F, V_S), reduced = false)
         any(i -> iszero(R_S[i, i]), 1:(length(S) - 1)) && return false
         if length(S) <= size(V, 1)
@@ -356,7 +352,8 @@ function is_partial_mixed_cell(A::Matrix{FqFieldElem},
     return false
 end
 
-function is_in_mixed_cell_cone(wd::WalkData, m::MixedCell, d::Vector{Float64})
+function is_in_mixed_cell_cone(wd::WalkData, m::MixedCell, d::Vector{Float64},
+                               p0::Vector{Int}, p1::Vector{Int})
     d_qq = (QQ).((rationalize).(d))
     _, w = outer_normal_vector(wd.M, m, d_qq)
     sinds = sort(indices(wd.M), by = i -> dot(w, wd.M.A_Fl[:, i]) + d[i], rev = true)
@@ -378,6 +375,7 @@ function is_in_mixed_cell_cone(wd::WalkData, m::MixedCell, d::Vector{Float64})
         for c in keys(wd.walls)
             for (m0, _, sgn) in wd.walls[c]
                 if m0 == m
+                    println("crossing value t = $(crossing_val(p0, p1, c))")
                     tst2 = tst2 && (sgn ? dot(d, c) > 0 : dot(d, c) < 0)
                 end
             end

@@ -32,7 +32,7 @@ end
 
     # hexagon example
     M = hexagon_example()
-    m = MCIS.MixedCell([[1,6], [2,3]])
+    m = MCIS.MixedCell([[1,6], [2,3]], M)
     wd = MCIS.WalkData(M, [m])
     @test length(keys(wd.walls)) == 3
     @test length(findall(im -> first(im)[2] == 1, wd.walls)) == 1
@@ -53,9 +53,9 @@ end
     M = hexagon_example()
     inds = [1,6]
     for S in [[2,3], [4,5]]
-        @test MCIS.is_partial_mixed_cell(M, MCIS.MixedCell([inds, S]))
+        @test MCIS.is_partial_mixed_cell(M, MCIS.MixedCell([inds, S], M))
     end
-    @test !MCIS.is_partial_mixed_cell(M, MCIS.MixedCell([inds, [3,4]]))
+    @test !MCIS.is_partial_mixed_cell(M, MCIS.MixedCell([inds, [3,4]], M))
 
     d = (QQ).([14,27,56,63,50,27])
     w = (QQ).([-16,-13])
