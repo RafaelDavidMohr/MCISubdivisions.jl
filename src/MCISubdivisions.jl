@@ -56,7 +56,7 @@ function walk_homotopy!(w::WalkData, p0::Vector{Int}, p1::Vector{Int})
 
     c_prev = nothing
     while true
-        c_int = first_intersection(p0, p1, keys(w.walls), c_prev)
+        c_int = first_intersection!(p0, p1, keys(w.walls), c_prev, w)
         if isnothing(c_int)
             @info "no intersection left, finished"
             return

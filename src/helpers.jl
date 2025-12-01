@@ -123,7 +123,7 @@ end
 # --- circuits --- #
 
 function nz_inds(c::Hyperplane)
-    return findall(!iszero, c.cfs_P)
+    return c.nzinds
 end
 
 function partial_sum(inds::Vector{Int}, c::Hyperplane)
@@ -136,23 +136,35 @@ function partial_sum_sign(inds::Vector{Int}, c::Hyperplane, sgn::Bool)
 end
 
 function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
-    return dot(v, c.cfs_fl), dot(v, c.cfs_P)
+    F = parent(first(c.cfs_P))
+    res_P = F(0)
+    res_fl = 0.0
+    for i in nz_inds(c)
+        res_P += v[i] * c.cfs_P[i]
+        res_fl += v[i] * c.cfs_fl[i]
+    end
+    return res_fl, res_P
 end
 
 function LinearAlgebra.dot(v::Vector{Float64}, c::Hyperplane)
-    return dot(v, c.cfs_fl)
+    res_fl = 0.0
+    for i in nz_inds(c)
+        res_fl += v[i] * c.cfs_fl[i]
+    end
+    return res_fl
 end
 
 # --- homotopy paths --- #
     
-function first_intersection(p0::Vector{Int}, p1::Vector{Int},
-                            hyperplanes::AbstractSet{Hyperplane},
-                            last_h::Union{Nothing, Hyperplane})
+function first_intersection!(p0::Vector{Int}, p1::Vector{Int},
+                             hyperplanes::AbstractSet{Hyperplane},
+                             last_h::Union{Nothing, Hyperplane},
+                             wd::WalkData)
 
     best_h = nothing
 
     for c in hyperplanes
-        !(does_cross(p0, p1, c)) && continue
+        !does_cross!(p0, p1, c, wd) && continue
         if isnothing(last_h) || !lt_refined(p0, p1, last_h, c)
             if isnothing(best_h) || lt_refined(p0, p1, best_h, c)
                 best_h = c
@@ -186,11 +198,19 @@ function lt_refined(p0::Vector{Int}, p1::Vector{Int}, c1::Hyperplane, c2::Hyperp
     return true # error check here?
 end
 
-function does_cross(p0::Vector{Int}, p1::Vector{Int}, c::Hyperplane)
+function does_cross!(p0::Vector{Int}, p1::Vector{Int}, c::Hyperplane, wd::WalkData)
+    c in wd.nocross && return false
     p0c, _ = dot(p0, c)
     p1c, p1c_P = dot(p1, c)
-    iszero(p1c_P) && return false
-    return signbit(p0c) ⊻ signbit(p1c)
+    if iszero(p1c_P)
+        push!(wd.nocross, c)
+        return false
+    end
+    res = signbit(p0c) ⊻ signbit(p1c)
+    if !res
+        push!(wd.nocross, c)
+    end
+    return res
 end
 
 function crossing_val(p0::Vector{Int}, p1::Vector{Int}, c::Hyperplane)

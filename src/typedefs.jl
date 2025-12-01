@@ -34,10 +34,12 @@ end
 struct Hyperplane
     cfs_P::Vector{FqFieldElem}
     cfs_fl::Vector{Float64}
+    nzinds::Vector{Int}
 
     function Hyperplane(cfs_P::Vector{FqFieldElem}, cfs_fl::Vector{Float64})
-        ni = findfirst(!iszero, cfs_P)
-        return new(cfs_P[ni]^(-1) .* cfs_P, cfs_fl[ni]^(-1) .* cfs_fl)
+        nzinds = findall(!iszero, cfs_P)
+        ni = first(nzinds)
+        return new(cfs_P[ni]^(-1) .* cfs_P, cfs_fl[ni]^(-1) .* cfs_fl, nzinds)
     end
 end
 
@@ -47,10 +49,6 @@ end
 
 function Base.:(==)(c1::Hyperplane, c2::Hyperplane)
     return c1.cfs_P == c2.cfs_P
-end
-
-function mult(cf_P::FqFieldElem, cf_fl::Float64, c::Hyperplane)
-    return Hyperplane(cf_P .* c.cfs_P, cf_fl .* c.cfs_fl)
 end
 
 function Base.hash(c::Hyperplane, h::UInt)
@@ -129,6 +127,7 @@ end
 struct WalkData
     M::MCI
     walls::Dict{Hyperplane, Set{Tuple{MixedCell, Int, Bool}}}
+    nocross::Set{Hyperplane}
 end
 
 function WalkData(M::MCI,
@@ -138,5 +137,5 @@ function WalkData(M::MCI,
     for m in initial_mixed_cells
         compute_active_walls!(m, M, walls)
     end
-    return WalkData(M, walls)
+    return WalkData(M, walls, Set{Hyperplane}())
 end
