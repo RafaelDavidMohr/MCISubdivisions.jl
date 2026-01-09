@@ -264,6 +264,19 @@ function delete_mixed_cell!(wd::WalkData, m::MixedCell)
     end
 end
 
+function gather_mixed_cells(wd::WalkData, max_ind=0::Int)
+
+    result = Set{MixedCell}()
+    for c in keys(wd.walls)
+        for (m, act_index, sgn) in wd.walls[c]
+            !iszero(max_ind) && any(S -> any(i -> i > max_ind, S), m.inds) && continue
+            push!(result, m)
+        end
+    end
+
+    return collect(result)
+end
+
 function add_to_dict!(d::Dict{T, Set{S}}, k::T, v::S) where {T, S}
     if haskey(d, k)
         push!(d[k], v)

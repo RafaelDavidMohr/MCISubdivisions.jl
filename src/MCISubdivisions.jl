@@ -22,11 +22,11 @@ function mixed_subdivision(F::Vector{<:MPolyRingElem})
     R = parent(first(F))
     @assert ngens(R) == length(F) "Input system not square"
     A, V = get_eci_data(F)
-    A, mixed_subdivision(A, V)
+    return A, mixed_subdivision(A, V)
 end
 
 function mixed_volume(A::Matrix{Int}, V::Matrix{C}) where C
-    A_ext, cells = mixed_subdivision(A, V)
+    cells = mixed_subdivision(A, V)
     return sum([vol(m, A_ext) for m in cells])
 end
 
@@ -40,15 +40,7 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     walk_homotopy!(wd, p0, p1)
 
     A_size = size(A, 2)
-    result = Set{MixedCell}()
-    for c in keys(wd.walls)
-        for (m, act_index, sgn) in wd.walls[c]
-            any(S -> any(i -> i > A_size, S), m.inds) && continue
-            push!(result, m)
-        end
-    end
-
-    return A_ext, collect(result)
+    return gather_mixed_cells(wd, A_size)
 end
 
 end # module MCISubdivisions
