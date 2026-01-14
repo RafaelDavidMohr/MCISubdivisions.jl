@@ -40,7 +40,7 @@ struct Hyperplane
         nzinds = findall(!iszero, cfs_P)
         ni = first(nzinds)
         return new(cfs_P[ni]^(-1) .* cfs_P, cfs_fl[ni]^(-1) .* cfs_fl, nzinds)
-    end
+   end
 end
 
 function Base.length(c::Hyperplane)
@@ -154,10 +154,10 @@ function get_elim_start_data(F::Vector{<:MPolyRingElem})
     A, V = get_eci_data(F)
     n = length(F) - 1
     A_elim = A[1:n, :]
-    M = MCI(A, V)
-    M_elim = MCI(A_elim, V[1:n, :])
+    M = MCI(V, A)
+    M_elim = MCI(V[1:n, :], A_elim)
     
-    init_cells = mixed_subdivision(A_elim, V)
+    init_cells = mixed_subdivision(A_elim, V[1:n, :])
     init_lift = ones(Int, size(A_elim, 2))
 
     return ElimData(M, M_elim, A, init_cells, init_lift)

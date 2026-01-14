@@ -268,13 +268,13 @@ function delete_mixed_cell!(wd::WalkData, m::MixedCell)
     end
 end
 
-function gather_mixed_cells(wd::WalkData, max_ind=0::Int)
+function gather_mixed_cells(M::MCI, wd::WalkData, max_ind=0::Int)
 
     result = Set{MixedCell}()
     for c in keys(wd.walls)
         for (m, act_index, sgn) in wd.walls[c]
             !iszero(max_ind) && any(S -> any(i -> i > max_ind, S), m.inds) && continue
-            push!(result, m)
+            push!(result, MixedCell(m.inds, M))
         end
     end
 
@@ -295,4 +295,21 @@ function compose_as_maps(m1::Vector{Int}, m2::Vector{Int})
         result[j] = m1[i]
     end
     return result
+end
+
+function id_matrix(n)
+    return [i == j ? 1 : 0 for i in 1:n, j in 1:n]
+end
+
+function get_A_disc_equations(A::Matrix{Int})
+
+    d, n = size(A)
+    A_lift = vcat(A, id_matrix(n))
+    edges = subsets([A_lift[:, i] for i in 1:n], 2)
+    R, vars = polynomial_ring(QQ, vcat(["x$i" for i in 1:d], ["z$i" for i in 1:n]))
+    x = vars[1:d]
+    z = vars[d+1:end]
+    s = sum(prod(map((i,j) -> i^j, vars, A_lift[:,k])) for k in 1:n)
+    fs = [s; [v*derivative(s, v) for v in x]]
+    return fs
 end
