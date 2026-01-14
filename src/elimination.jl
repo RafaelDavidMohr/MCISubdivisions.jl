@@ -5,7 +5,7 @@ function elim_support_func!(E::ElimData,
 
     n = size(E.M.V, 1) - 1 # n + 1 input equations
     wd = WalkData(E.M_elim, E.current_ms)
-    new_lift = vec(permutedims(vcat(covec, zeros(Int, n))) * E.A)
+    new_lift = vec(permutedims(vcat(zeros(Int, n), covec)) * E.A)
 
     # compute new subdivision
     walk_homotopy!(wd, E.current_lift, new_lift)
@@ -22,7 +22,7 @@ function elim_support_func!(E::ElimData,
         sp = sortperm(dotprods, rev = true)
         V_red = Oscar.echelon_form(matrix(F, E.M.V[:, sp]))
         nz_index = findfirst(!iszero, V_red[end, :])
-        result += round(Int, sp[nz_index])*vol(m, A_elim)
+        result += round(Int, dotprods[sp[nz_index]])*vol(m, A_elim)
     end
 
     E.current_ms = new_ms
