@@ -26,7 +26,7 @@ end
 @testset "Setup" begin
     # random linear equations
     M = random_linear_as_mci(4)
-    m = MCIS.MixedCell([collect(1:5)])
+    m = MCIS.MixedCell([collect(1:5)], M)
     wd = MCIS.WalkData(M, [m])
     @test isempty(wd.walls)
 
@@ -66,19 +66,21 @@ end
 @testset "Mixed Cell Flips" begin
     # hexagon example
     M = hexagon_example()
-    m = MCIS.MixedCell([[1,6], [2,3]])
+    m = MCIS.MixedCell([[1,6], [2,3]], M)
     wd = MCIS.WalkData(M, [m])
-    c = last(collect(keys(wd.walls)))
+    wls = collect(keys(wd.walls))
+    c = wls[findfirst(c -> c.nzinds == [1,2,3,6], wls)]
     new_mc = MCIS.mixed_cell_flip(m, c, M, 1, false)
     @test length(new_mc) == 1
     @test first(new_mc).inds == [[2,3],[1,6]]
-    m = MCIS.MixedCell([[1,6], [2,4]])
+    m = MCIS.MixedCell([[1,6], [2,4]], M)
     wd = MCIS.WalkData(M, [m])
-    c = collect(keys(wd.walls))[2]
+    wls = collect(keys(wd.walls))
+    c = wls[findfirst(c -> c.nzinds == [1,3,4,6], wls)]
     new_mc = MCIS.mixed_cell_flip(m, c, M, 2, false)
     @test length(new_mc) == 1
     @test first(new_mc).inds == [[1,6],[2,3]]
-    c = last(collect(keys(wd.walls)))
+    c = wls[findfirst(c -> c.nzinds == [1,2,4,6], wls)]
     new_mc = MCIS.mixed_cell_flip(m, c, M, 1, false)
     @test length(new_mc) == 1
     @test first(new_mc).inds == [[2,4,6]]

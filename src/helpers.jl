@@ -1,16 +1,5 @@
 # --- mixed cells --- #
 
-function find_nonzero_indices(V::Matrix{C}, inds::Vector{Int}, test_inds::Vector{Int},
-                              V_rank::Int) where C
-
-    res = Int[]
-    Proj = project_along_linear_space(V[:, inds], V[:, test_inds], V_rank)
-    for i in 1:size(Proj, 2)
-        !iszero(Proj[:, i]) && push!(res, test_inds[i])
-    end
-    return res
-end
-
 function MixedCell(inds::Vector{Vector{Int}}, M::MCI)
     loc_inds = Vector{Int}[]
     for i in 1:length(inds)
@@ -21,6 +10,17 @@ function MixedCell(inds::Vector{Vector{Int}}, M::MCI)
         push!(loc_inds, loc_inds_i)
     end
     return MixedCell(inds, loc_inds)
+end
+
+function find_nonzero_indices(V::Matrix{C}, inds::Vector{Int}, test_inds::Vector{Int},
+                              V_rank::Int) where C
+
+    res = Int[]
+    Proj = project_along_linear_space(V[:, inds], V[:, test_inds], V_rank)
+    for i in 1:size(Proj, 2)
+        !iszero(Proj[:, i]) && push!(res, test_inds[i])
+    end
+    return res
 end
 
 function vol(m::MixedCell, A::Matrix{Int})
@@ -243,9 +243,13 @@ function forgetful_lift(A_size::Int, forget_inds::Vector{Int})
     return d
 end
 
-function get_eci_data(F::Vector{<:MPolyRingElem})
+function get_support(F::Vector{<:MPolyRingElem})
     exps = unique(vcat([collect(exponents(f)) for f in F]...))
-    A = hcat(exps...)
+    return hcat(exps...)
+end
+
+function get_eci_data(F::Vector{<:MPolyRingElem})
+    A = get_support(F)
     CT = eltype(base_ring(parent(first(F))))
     V = [coeff(f, A[:, i]) for f in F, i in 1:size(A, 2)]
     return A, V

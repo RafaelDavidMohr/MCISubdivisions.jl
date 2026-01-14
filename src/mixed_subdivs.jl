@@ -268,7 +268,7 @@ function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
         prev_deg = new_deg
     end
             
-    return MixedCell(result)
+    return MixedCell(result, M)
 end
 
 # checks if m ∪ {S} is a partial mixed cell
@@ -278,7 +278,7 @@ function is_partial_mixed_cell(M::MCI, m::MixedCell)
 
     for j in 1:length(m.inds)
         !is_partial_mixed_cell(M_curr, m.inds[j]) && return false
-        M_curr = localize(M_curr, m.inds[j], m.outside_inds[j])
+        M_curr = localize(M_curr, m.inds[j], m.loc_inds[j])
     end
 
     return true

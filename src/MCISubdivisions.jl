@@ -6,6 +6,7 @@ using LinearAlgebra
 include("typedefs.jl")
 include("helpers.jl")
 include("mixed_subdivs.jl")
+include("elimination.jl")
 
 export mixed_volume, mixed_subdivision
 
@@ -27,7 +28,7 @@ end
 
 function mixed_volume(A::Matrix{Int}, V::Matrix{C}) where C
     cells = mixed_subdivision(A, V)
-    return sum([vol(m, A_ext) for m in cells])
+    return sum([vol(m, A) for m in cells])
 end
 
 function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
