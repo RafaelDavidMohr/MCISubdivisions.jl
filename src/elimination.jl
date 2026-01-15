@@ -6,6 +6,7 @@ function elim_support_func!(E::ElimData,
     n = size(E.M.V, 1) - 1 # n + 1 input equations
     wd = WalkData(E.M_elim, E.current_ms)
     new_lift = vec(permutedims(vcat(zeros(Int, n), covec)) * E.A)
+    println(new_lift)
 
     # compute new subdivision
     walk_homotopy!(wd, E.current_lift, new_lift)

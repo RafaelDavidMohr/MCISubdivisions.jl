@@ -177,7 +177,6 @@ end
     
 # c1 < c2 in lexicographic order refined by p0
 function lt_refined(p0::Vector{Int}, p1::Vector{Int}, c1::Hyperplane, c2::Hyperplane)
-
     m1_fl, m1_P = dot(p1, c1) .^ (-1)
     m2_fl, m2_P = dot(p1, c2) .^ (-1)
 
@@ -200,13 +199,13 @@ end
 
 function does_cross!(p0::Vector{Int}, p1::Vector{Int}, c::Hyperplane, wd::WalkData)
     c in wd.nocross && return false
-    p0c, _ = dot(p0, c)
+    p0c, p0c_P = dot(p0, c)
     p1c, p1c_P = dot(p1, c)
     if iszero(p1c_P)
         push!(wd.nocross, c)
         return false
     end
-    res = signbit(p0c) ⊻ signbit(p1c)
+    res = (iszero(p0c_P) || signbit(p0c)) ⊻ signbit(p1c)
     if !res
         push!(wd.nocross, c)
     end

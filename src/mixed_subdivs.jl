@@ -11,7 +11,8 @@ function walk_homotopy!(w::WalkData, p0::Vector{Int}, p1::Vector{Int})
             @info "no intersection left, finished"
             return
         end
-        @info "intersection found"
+        @info "intersection found, crossing $(c_int.nzinds)"
+        @info "crossing at $(crossing_val(p0, p1, c_int))"
         @info "$(length(w.walls[c_int])) mixed cells to flip"
         walk_wall!(w, c_int)
         c_prev = c_int

@@ -95,3 +95,10 @@ end
     V = (QQ).(vcat(V, hcat([r[1]], 2*g, 3*b, [r[2]])))
     @test mixed_volume(A, V) == 3
 end
+
+#=
+test case:
+A = [5 4 3 2 1 0]
+V = [1 1 1 1 1 1]
+lift = [-60, -74, -26, 24, 31, -47]
+=#
