@@ -110,10 +110,3 @@ end
     @test length(ms_new) == 3
     @test sum([MCIS.vol(m, A) for m in ms_new]) == 5
 end
-
-#=
-test case:
-A = [5 4 3 2 1 0]
-V = [1 1 1 1 1 1]
-lift = [-60, -74, -26, 24, 31, -47]
-=#

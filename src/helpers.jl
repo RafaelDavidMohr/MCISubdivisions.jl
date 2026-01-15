@@ -304,8 +304,9 @@ function get_A_disc_equations(A::Matrix{Int})
 
     d, n = size(A)
     A_lift = vcat(A, id_matrix(n))
+    A_lift = A_lift[1:size(A_lift, 1) - 1, :]
     edges = subsets([A_lift[:, i] for i in 1:n], 2)
-    R, vars = polynomial_ring(QQ, vcat(["x$i" for i in 1:d], ["z$i" for i in 1:n]))
+    R, vars = polynomial_ring(QQ, vcat(["x$i" for i in 1:d], ["z$i" for i in 1:(n-1)]))
     x = vars[1:d]
     z = vars[d+1:end]
     s = sum(prod(map((i,j) -> i^j, vars, A_lift[:,k])) for k in 1:n)

@@ -8,7 +8,7 @@ include("helpers.jl")
 include("mixed_subdivs.jl")
 include("elimination.jl")
 
-export mixed_volume, mixed_subdivision
+export mixed_volume, mixed_subdivision, get_A_disc_equations
 
 # --- Main functions --- #
 
