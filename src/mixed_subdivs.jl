@@ -24,26 +24,26 @@ function walk_homotopy!(w::WalkData, p0::Lift, p1::Lift)
 end
 
 function total_degree_homotopy(A::Matrix{Int}, V::Matrix{FqFieldElem})
+    n = size(A, 1)
     A_size = size(A, 2)
 
     # extended MCI
     max_deg = maximum(i -> sum(A[:, i]), 1:A_size)
-    n = size(A, 1)
     A_ext = copy(A)
     V_ext = copy(V)
     F = parent(first(V))
     for i in 0:n
         A_ext = hcat(A_ext, [j == i ? max_deg : 0 for j in 1:n])
-        V_ext = hcat(V_ext, rand_vec_ff(F, n))
+        V_ext = hcat(V_ext, rand_arr_ff(F, n))
     end
     M = MCI(V_ext, A_ext)
 
     # set up path
     p0 = forgetful_lift(A_size + n + 1, collect(1:A_size))
-    p1 = forgetful_lift(A_size + n + 1, collect(A_size+1:A_size+n+1))
+    p1 = forgetful_lift(A_size + n + 1, collect(A_size+1:A_size + n + 1))
 
     # initial mixed cell
-    init_mc = MixedCell([collect(A_size+1:A_size+n+1)], M)
+    init_mc = MixedCell([collect(A_size+1:A_size + n + 1)], M)
     wd = WalkData(M, [init_mc])
 
     return A_ext, wd, p0, p1

@@ -178,8 +178,11 @@ function first_intersection!(l0::Lift, l1::Lift,
     best_h = nothing
 
     for c in hyperplanes
-        c == last_h && continue
         c in wd.nocross && continue
+        if c == last_h
+            push!(wd.nocross, c)
+            continue
+        end
 
         t_c = crossing_val(l0, l1, c)
         # check if crossing between last t and 1
@@ -204,8 +207,15 @@ function crossing_val(l0::Lift, l1::Lift, c::Hyperplane)
 
     F = prime_field(l0d)
     if iszero(l0d.r_P) && iszero(l1d.r_P)
-        return DualNumber(l0d.eps_fl * denom.eps_fl^(-1),
-                          l0d.eps_P * denom.eps_P^(-1), 0.0, F(0))
+        try
+            return DualNumber(l0d.eps_fl * denom.eps_fl^(-1),
+                              l0d.eps_P * denom.eps_P^(-1), 0.0, F(0))
+        catch e
+            if isa(e, DivideError)
+                println(denom)
+                rethrow(e)
+            end 
+        end
     else
         return l0d * inv(denom)
     end
@@ -255,8 +265,8 @@ function get_eci_data(F::Vector{<:MPolyRingElem})
     return A, V
 end
 
-function rand_vec_ff(F::FqField, n::Int)
-    return (F).(rand(0:characteristic(F)-1, n))
+function rand_arr_ff(F::FqField, dims...)
+    return (F).(rand(0:characteristic(F)-1, dims...))
 end
 
 function delete_mixed_cell!(wd::WalkData, m::MixedCell)
