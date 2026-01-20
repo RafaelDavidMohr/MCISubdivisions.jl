@@ -29,6 +29,59 @@ function Base.show(io::IO, ::MIME"text/plain", m::MixedCell)
     print(io, "Mixed cell of dimension $(dims)")
 end
 
+# --- Dual Number --- #
+
+struct DualNumber
+    r_fl::Float64
+    r_P::FqFieldElem
+    eps_fl::Float64
+    eps_P::FqFieldElem
+end
+
+function Base.show(io::IO, a::DualNumber)
+    print(io, "$(round(a.r_fl, digits = 3)) + ϵ ⋅ $(round(a.eps_fl, digits = 3))")
+end
+
+function Base.:(-)(a::DualNumber, b::DualNumber)
+    return DualNumber(a.r_fl - b.r_fl, a.r_P - b.r_P,
+                      a.eps_fl - b.eps_fl, a.eps_P - b.eps_P)
+end
+
+function Base.:(*)(a::DualNumber, b::DualNumber)
+    return DualNumber(a.r_fl*b.r_fl, a.r_P*b.r_P,
+                      a.r_fl*b.eps_fl + a.eps_fl*b.r_fl,
+                      a.r_P*b.eps_P + a.eps_P*b.r_P)
+end
+
+function Base.inv(a::DualNumber)
+    iszero(a.r_P) && error("not invertible")
+    return DualNumber(a.r_fl^(-1), a.r_P^(-1),
+                      -(a.eps_fl*a.r_fl^(-2)), -(a.eps_P*a.r_P^(-2)))
+end
+
+function dual_zero(F::FqField)
+    return DualNumber(0.0, F(0), 0.0, F(0))
+end
+
+function dual_one(F::FqField)
+    return DualNumber(1.0, F(1), 0.0, F(0))
+end
+
+function lt_dual(a::DualNumber, b::DualNumber)
+
+    if a.r_P != b.r_P
+        return a.r_fl < b.r_fl
+    elseif a.eps_P != b.eps_P
+        return a.eps_fl < b.eps_fl
+    else
+        return false
+    end
+end
+
+function prime_field(a::DualNumber)
+    return parent(a.r_P)
+end
+
 # --- Circuit --- #
 
 struct Hyperplane
@@ -122,6 +175,18 @@ function ambient_dim(M::MCI)
     return size(M.A_modP, 1)
 end
 
+# --- Lift --- #
+
+struct Lift
+    r::Vector{Int}
+    eps::Vector{Int}
+end
+
+function Lift(r::Vector{Int})
+    l = length(r)
+    return Lift(r, rand(-100:100, l))
+end
+
 # --- WalkData --- # 
 
 struct WalkData
@@ -147,7 +212,7 @@ mutable struct ElimData
     M_elim::MCI
     A::Matrix{Int}
     current_ms::Vector{MixedCell}
-    current_lift::Vector{Int}
+    current_lift::Lift
 end
 
 function get_elim_start_data(F::Vector{<:MPolyRingElem})
@@ -157,8 +222,7 @@ function get_elim_start_data(F::Vector{<:MPolyRingElem})
     M = MCI(V, A)
     M_elim = MCI(V[1:n, :], A_elim)
     
-    init_cells = mixed_subdivision(A_elim, V[1:n, :])
-    init_lift = ones(Int, size(A_elim, 2))
+    init_lift, init_cells = mixed_subdivision(A_elim, V[1:n, :])
 
     return ElimData(M, M_elim, A, init_cells, init_lift)
 end

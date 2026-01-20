@@ -1,18 +1,22 @@
 # --- Functions for mixed subdivisions and homotopies --- #
 
-function walk_homotopy!(w::WalkData, p0::Vector{Int}, p1::Vector{Int})
+function walk_homotopy!(w::WalkData, p0::Lift, p1::Lift)
 
     @info "starting homotopy"
+    if p0.r == p1.r
+        @info "infinitesimal deformation, nothing to do"
+        return
+    end
 
     c_prev = nothing
     while true
-        c_int = first_intersection!(p0, p1, keys(w.walls), c_prev, w)
+        c_int, t_cross = first_intersection!(p0, p1, keys(w.walls), c_prev, w)
         if isnothing(c_int)
             @info "no intersection left, finished"
             return
         end
         @info "intersection found"
-        @info "crossing at $(crossing_val(p0, p1, c_int))"
+        @info "crossing at $(t_cross)"
         @info "$(length(w.walls[c_int])) mixed cells to flip"
         walk_wall!(w, c_int)
         c_prev = c_int
@@ -207,6 +211,26 @@ end
 
 # --- Mixed cell checking/computation for testing --- #
 
+function outer_normal_vector(A::Matrix{Int}, m::MixedCell,
+                             d::Vector{QQFieldElem})
+
+    n = size(A, 1)
+    A_lifted = vcat(A, transpose(d))
+
+    eqns = Matrix{QQFieldElem}(undef, n + 1, 0)
+    for S in m.inds
+        a = A_lifted[:, first(S)]
+        for i in S[2:end]
+            eqns = hcat(eqns, A_lifted[:, i] - a)
+        end
+    end
+
+    K = kernel(matrix(QQ, eqns))
+    @assert isone(size(K, 1)) "mixed cell does not lift to a hyperplane"
+    K *= K[1, end]^(-1)
+    return K[1, 1:n]
+end
+
 function outer_normal_vector(M::MCI, m::MixedCell,
                              d::Vector{QQFieldElem})
 
@@ -304,6 +328,7 @@ function is_partial_mixed_cell(M::RelativeMCI,
     return false
 end
 
+# TODO: update this function
 function is_in_mixed_cell_cone(wd::WalkData, m::MixedCell, d::Vector{Float64},
                                p0::Vector{Int}, p1::Vector{Int})
     d_qq = (QQ).((rationalize).(d))

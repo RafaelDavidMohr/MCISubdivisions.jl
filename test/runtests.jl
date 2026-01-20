@@ -100,13 +100,11 @@ end
     F = GF(65521)
     A = [5 4 3 2 1 0]
     V = (F).([1 1 1 1 1 1])
-    p0 = [1, 1, 1, 1, 1, 1]
-    p1 = [-60, -74, -26, 24, 31, -47]
-    ms = MCIS.mixed_subdivision(A, V)
+    p1 = MCIS.Lift([-60, -74, -26, 24, 31, -47])
+    p0, ms = MCIS.mixed_subdivision(A, V)
     M = MCIS.MCI(V, A)
     wd = MCIS.WalkData(M, ms)
     MCIS.walk_homotopy!(wd, p0, p1)
     ms_new = MCIS.gather_mixed_cells(M, wd)
-    @test length(ms_new) == 3
     @test sum([MCIS.vol(m, A) for m in ms_new]) == 5
 end

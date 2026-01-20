@@ -154,71 +154,72 @@ function LinearAlgebra.dot(v::Vector{Float64}, c::Hyperplane)
     return res_fl
 end
 
+function LinearAlgebra.dot(l::Lift, c::Hyperplane)
+    return DualNumber(dot(l.r, c)..., dot(l.eps, c)...)
+end
+
 # --- homotopy paths --- #
     
-function first_intersection!(p0::Vector{Int}, p1::Vector{Int},
+function first_intersection!(l0::Lift, l1::Lift,
                              hyperplanes::AbstractSet{Hyperplane},
                              last_h::Union{Nothing, Hyperplane},
                              wd::WalkData)
 
+    F = prime_field_A(wd.M)
+    one_dual = dual_one(F)
+
+    last_t = if isnothing(last_h)
+        dual_zero(F)
+    else
+        crossing_val(l0, l1, last_h)
+    end
+
+    best_t = nothing
     best_h = nothing
 
     for c in hyperplanes
-        !does_cross!(p0, p1, c, wd) && continue
-        if isnothing(last_h) || !lt_refined(p0, p1, last_h, c)
-            if isnothing(best_h) || lt_refined(p0, p1, best_h, c)
-                best_h = c
-            end
+        c == last_h && continue
+        c in wd.nocross && continue
+
+        t_c = crossing_val(l0, l1, c)
+        # check if crossing between last t and 1
+        if lt_dual(t_c, last_t) || lt_dual(one_dual, t_c)
+            push!(wd.nocross, c)
+            continue
+        end
+
+        if isnothing(best_h) || lt_dual(t_c, best_t)
+            best_t = t_c
+            best_h = c
         end
     end
 
-    return best_h
-end
-    
-# c1 < c2 in lexicographic order refined by p0
-function lt_refined(p0::Vector{Int}, p1::Vector{Int}, c1::Hyperplane, c2::Hyperplane)
-    m1_fl, m1_P = dot(p1, c1) .^ (-1)
-    m2_fl, m2_P = dot(p1, c2) .^ (-1)
-
-    d1_fl, d1_P = (m1_fl, m1_P) .* dot(p0, c1)
-    d2_fl, d2_P = (m2_fl, m2_P) .* dot(p0, c2)
-    if d1_P != d2_P
-        return d1_fl > d2_fl
-    end
-
-    for i in 1:length(c1)
-        c1e_P = m1_P * c1.cfs_P[i]
-        c2e_P = m2_P * c2.cfs_P[i]
-        if c1e_P != c2e_P
-            return m1_fl * c1.cfs_fl[i] > m2_fl * c2.cfs_fl[i]
-        end
-    end
-
-    return true # error check here?
+    return best_h, best_t
 end
 
-function does_cross!(p0::Vector{Int}, p1::Vector{Int}, c::Hyperplane, wd::WalkData)
-    c in wd.nocross && return false
-    p0c, p0c_P = dot(p0, c)
-    p1c, p1c_P = dot(p1, c)
-    if iszero(p1c_P)
-        push!(wd.nocross, c)
-        return false
-    end
-    res = (iszero(p0c_P) || signbit(p0c)) ⊻ signbit(p1c)
-    if !res
-        push!(wd.nocross, c)
-    end
-    return res
-end
+function crossing_val(l0::Lift, l1::Lift, c::Hyperplane)
+    l0d = dot(l0, c)
+    l1d = dot(l1, c)
+    denom = l0d - l1d
 
-function crossing_val(p0::Vector{Int}, p1::Vector{Int}, c::Hyperplane)
-    p0c, _ = dot(p0, c)
-    p1c, _ = dot(p1, c)
-    return p0c / (p0c - p1c)
+    F = prime_field(l0d)
+    if iszero(l0d.r_P) && iszero(l1d.r_P)
+        return DualNumber(l0d.eps_fl * denom.eps_fl^(-1),
+                          l0d.eps_P * denom.eps_P^(-1), 0.0, F(0))
+    else
+        return l0d * inv(denom)
+    end
 end
 
 # --- other helpers --- #
+
+function to_mat_dual(a::Tuple{T, T}) where T
+    return [a[1] a[2]; zero(a[1]) a[1]]
+end
+
+function to_dual_mat(a::Matrix{T}) where T
+    return a[1, 1], a[1, 2]
+end
 
 # TODO probably: sorted merge
 function restrict(inds::Vector{Int}, restr::Vector{Int})
@@ -239,7 +240,7 @@ function forgetful_lift(A_size::Int, forget_inds::Vector{Int})
             d[i] = 1
         end
     end
-    return d
+    return Lift(d)
 end
 
 function get_support(F::Vector{<:MPolyRingElem})
