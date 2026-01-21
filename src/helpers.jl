@@ -16,11 +16,18 @@ function find_nonzero_indices(V::Matrix{C}, inds::Vector{Int}, test_inds::Vector
                               V_rank::Int) where C
 
     res = Int[]
-    Proj = project_along_linear_space(V[:, inds], V[:, test_inds], V_rank)
-    for i in 1:size(Proj, 2)
-        !iszero(Proj[:, i]) && push!(res, test_inds[i])
+    F = parent(first(V))
+    for i in test_inds
+        if rank(matrix(F, V[:, vcat(inds, [i])])) == V_rank + 1
+            push!(res, i)
+        end
     end
     return res
+    # Proj = project_along_linear_space(V[:, inds], V[:, test_inds], V_rank)
+    # for i in 1:size(Proj, 2)
+    #     !iszero(Proj[:, i]) && push!(res, test_inds[i])
+    # end
+    # return res
 end
 
 function vol(m::MixedCell, A::Matrix{Int})
@@ -212,7 +219,11 @@ function crossing_val(l0::Lift, l1::Lift, c::Hyperplane)
                               l0d.eps_P * denom.eps_P^(-1), 0.0, F(0))
         catch e
             if isa(e, DivideError)
+                println(l0)
+                println(l1)
+                println(c.cfs_P)
                 println(denom)
+                println(characteristic(F))
                 rethrow(e)
             end 
         end

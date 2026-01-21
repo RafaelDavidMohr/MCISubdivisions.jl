@@ -46,7 +46,8 @@ function total_degree_homotopy(A::Matrix{Int}, V::Matrix{FqFieldElem})
     init_mc = MixedCell([collect(A_size+1:A_size + n + 1)], M)
     wd = WalkData(M, [init_mc])
 
-    return A_ext, wd, p0, p1
+    tvol = vol(init_mc, A_ext)
+    return tvol, A_ext, wd, p0, p1
 end
 
 # --- Functions related to mixed cell cones --- #
@@ -331,39 +332,50 @@ function is_partial_mixed_cell(M::RelativeMCI,
     return false
 end
 
-# TODO: update this function
-function is_in_mixed_cell_cone(wd::WalkData, m::MixedCell, d::Vector{Float64},
-                               p0::Vector{Int}, p1::Vector{Int})
-    d_qq = (QQ).((rationalize).(d))
-    _, w = outer_normal_vector(wd.M, m, d_qq)
-    sinds = sort(indices(wd.M), by = i -> dot(w, wd.M.A_Fl[:, i]) + d[i], rev = true)
-    ml = sum((length).(m.inds))
-    # println(sinds[1:ml])
-    # println(m)
-    # println(m)
-    # for i in indices(M)
-    tst = true
-    k = 0
-    for S in m.inds
-        tst = tst && S == sort(sinds[1+k:length(S)+k])
-        k += length(S)
-    end
+function is_dual_tropical_root(wd::WalkData, m::MixedCell, d::Vector{Float64})
 
-    if !tst
-    # println("----")
-        tst2 = true
-        for c in keys(wd.walls)
-            for (m0, _, sgn) in wd.walls[c]
-                if m0 == m
-                    println("crossing value t = $(crossing_val(p0, p1, c))")
-                    tst2 = tst2 && (sgn ? dot(d, c) > 0 : dot(d, c) < 0)
-                end
+    d_qq = (QQ).((rationalize.(d)))
+    _, w = outer_normal_vector(wd.M, m, d_qq)
+    dotps = (i -> dot(w, wd.M.A_Fl[:, i]) + d[i]).(indices(wd.M))
+    is_first = true
+    last_val = 0.0
+    for (j, S) in enumerate(m.inds)
+        s1 = first(S)
+        for i in m.loc_inds[j]
+            i in S && continue
+            if dotps[s1] < dotps[i]
+                println(m.inds)
+                println(i)
+                return false
             end
         end
-        if tst2
-            @info "inconsistent test result"
+        if !is_first
+            if dotps[s1] > last_val
+                println(m.inds)
+                return false
+            end
         end
-        return false
+        last_val = dotps[s1]
+        is_first = false
     end
     return true
+end
+
+function is_in_mixed_cell_cone(wd::WalkData, m::MixedCell, d::Vector{Float64},
+                               p0::Lift, p1::Lift)
+
+    tst = true
+    for c in keys(wd.walls)
+        for (m0, _, sgn) in wd.walls[c]
+            if m0 == m
+                ineqn_sat = sgn ? dot(d, c) < 0 : dot(d, c) > 0
+                if !ineqn_sat
+                    println("crossing value t = $(crossing_val(p0, p1, c)), inequality satisfied $(ineqn_sat)")
+                end
+                tst = tst && ineqn_sat
+            end
+        end
+    end
+
+    return tst 
 end

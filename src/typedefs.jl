@@ -42,6 +42,15 @@ function Base.show(io::IO, a::DualNumber)
     print(io, "$(round(a.r_fl, digits = 3)) + ϵ ⋅ $(round(a.eps_fl, digits = 3))")
 end
 
+function Base.iszero(a::DualNumber)
+    return iszero(a.r_P) && iszero(a.eps_P)
+end
+
+function Base.:(+)(a::DualNumber, b::DualNumber)
+    return DualNumber(a.r_fl + b.r_fl, a.r_P + b.r_P,
+                      a.eps_fl + b.eps_fl, a.eps_P + b.eps_P)
+end
+
 function Base.:(-)(a::DualNumber, b::DualNumber)
     return DualNumber(a.r_fl - b.r_fl, a.r_P - b.r_P,
                       a.eps_fl - b.eps_fl, a.eps_P - b.eps_P)
@@ -184,7 +193,12 @@ end
 
 function Lift(r::Vector{Int})
     l = length(r)
-    return Lift(r, rand(-100:100, l))
+    return Lift(r, rand(-10000:10000, l))
+end
+
+function test_vector(l::Lift)
+    eps = 10^(-5)
+    return l.r + eps .* l.eps
 end
 
 # --- WalkData --- # 
