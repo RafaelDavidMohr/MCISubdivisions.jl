@@ -1,6 +1,6 @@
 # --- Functions for mixed subdivisions and homotopies --- #
 
-function walk_homotopy!(w::WalkData, p0::Lift, p1::Lift)
+function walk_homotopy!(w::WalkData, p0::Lift, p1::Lift, A::Matrix{Int})
 
     @info "starting homotopy"
     if p0.r == p1.r
@@ -18,7 +18,7 @@ function walk_homotopy!(w::WalkData, p0::Lift, p1::Lift)
         @info "intersection found"
         @info "crossing at $(t_cross)"
         @info "$(length(w.walls[c_int])) mixed cells to flip"
-        walk_wall!(w, c_int)
+        walk_wall!(w, c_int, A)
         c_prev = c_int
     end
 end
@@ -52,7 +52,7 @@ end
 
 # --- Functions related to mixed cell cones --- #
 
-function walk_wall!(wd::WalkData, c::Hyperplane)
+function walk_wall!(wd::WalkData, c::Hyperplane, A::Matrix{Int})
     active_mc_data = wd.walls[c]
     delete!(wd.walls, c) 
     cnt = 0

@@ -23,19 +23,12 @@ function find_nonzero_indices(V::Matrix{C}, inds::Vector{Int}, test_inds::Vector
         end
     end
     return res
-    # Proj = project_along_linear_space(V[:, inds], V[:, test_inds], V_rank)
-    # for i in 1:size(Proj, 2)
-    #     !iszero(Proj[:, i]) && push!(res, test_inds[i])
-    # end
-    # return res
 end
 
 function vol(m::MixedCell, A::Matrix{Int})
-    res = 1
-    for S in m.inds
-        res *= lattice_volume(convex_hull(transpose(A[:, S])))
-    end
-    return res
+    mat = hcat([linear_span(A, S) for S in m.inds]...)
+    lu = LinearAlgebra.lu(mat)
+    return round(Int, abs(LinearAlgebra.det(lu)))
 end
 
 function cayley_indices(m::MixedCell, j::Int)
