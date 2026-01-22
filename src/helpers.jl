@@ -1,3 +1,24 @@
+# --- circuit computation --- #
+
+function exchange_circuits(Mloc::RelativeMCI, known_circuit_inds::Vector{Int})
+    inds = setdiff(1:size(Mloc.V_rel, 2), known_circuit_inds)
+    @assert length(inds) == 1
+    result = Set{Vector{Int}}()
+    F = prime_field_V(Mloc)
+    for i in known_circuit_inds
+        mat = matrix(F, Mloc.V_rel[:, 1:end .!= i])
+        K = kernel(mat, side = :right)
+        new_c = Int[]
+        for j in 1:size(K, 1)
+            if !iszero(K[j, 1])
+                j >= i ? push!(new_c, j + 1) : push!(new_c, j)
+            end
+        end
+        push!(result, new_c)
+    end
+    return [Mloc.rel_to_base[c] for c in collect(result)]
+end
+
 # --- mixed cells --- #
 
 function MixedCell(inds::Vector{Vector{Int}}, M::MCI)

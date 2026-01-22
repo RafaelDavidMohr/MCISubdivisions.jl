@@ -83,10 +83,9 @@ function mixed_cell_flip(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, sg
 
     F = prime_field_V(M)
     Mloc = restrict(Mloc, inds)
-    # @info "$(length(m.inds[act_index])) mixed cell indices, $(length(inds)) candidate indices, rank $(rank(matrix(F, Mloc.V_rel)))"
     Ss_new = Vector{Int}[]
 
-    crcts = circuits(Mloc)
+    crcts = is_exchange ? exchange_circuits(Mloc, Mloc.base_to_rel[m.inds[act_index]]) : circuits(Mloc)
     for S_new in crcts
         @assert !isone(length(S_new)) "Circuit of length one in localization"
         S_new_rel = Mloc.base_to_rel[S_new]
