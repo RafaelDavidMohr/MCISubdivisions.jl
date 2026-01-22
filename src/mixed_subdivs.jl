@@ -85,10 +85,10 @@ function mixed_cell_flip(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, sg
     Mloc = restrict(Mloc, inds)
     Ss_new = Vector{Int}[]
 
-    crcts = is_exchange ? exchange_circuits(Mloc, Mloc.base_to_rel[m.inds[act_index]]) : circuits(Mloc)
-    for S_new in crcts
+    crcts = exchange_circuits(Mloc, Mloc.base_to_rel[m.inds[act_index]])
+    for S_new_rel in crcts
+        S_new = Mloc.rel_to_base[S_new_rel]
         @assert !isone(length(S_new)) "Circuit of length one in localization"
-        S_new_rel = Mloc.base_to_rel[S_new]
         sort!(S_new)
         if partial_sum_sign(S_new, c, sgn) && is_affine_independent(Mloc.A_rel, S_new_rel)
             push!(Ss_new, S_new)
