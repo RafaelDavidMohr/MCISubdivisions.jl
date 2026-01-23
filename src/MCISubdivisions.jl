@@ -36,7 +36,7 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     F = parent(first(Vp))
     rand_mix = matrix(F, (F).(rand(1:characteristic(F)-1, size(V, 1), size(V, 1))))
     Vp = Matrix(rand_mix * matrix(F, Vp))
-    tvol, A_ext, wd, p0, p1 = total_degree_homotopy(A, Vp)
+    A_ext, wd, p0, p1 = starting_system(A, Vp)
 
     walk_homotopy!(wd, p0, p1, A_ext)
 

@@ -23,31 +23,45 @@ function walk_homotopy!(w::WalkData, p0::Lift, p1::Lift, A::Matrix{Int})
     end
 end
 
-function total_degree_homotopy(A::Matrix{Int}, V::Matrix{FqFieldElem})
+function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem})
     n = size(A, 1)
     A_size = size(A, 2)
+    no_multiset = allunique(i -> A[:, i], 1:A_size)
 
     # extended MCI
-    max_deg = maximum(i -> sum(A[:, i]), 1:A_size)
     A_ext = copy(A)
     V_ext = copy(V)
     F = parent(first(V))
-    for i in 0:n
-        A_ext = hcat(A_ext, [j == i ? max_deg : 0 for j in 1:n])
-        V_ext = hcat(V_ext, rand_arr_ff(F, n))
+    if no_multiset
+        @info "Choosing polyhedral starting system"
+        A_ext = hcat(A_ext, A)
+        V_ext = hcat(V_ext, rand_arr_ff(F, n, A_size))
+    else
+        @info "Choosing total degree starting system"
+        max_deg = maximum(i -> sum(A[:, i]), 1:A_size)
+        for i in 0:n
+            A_ext = hcat(A_ext, [j == i ? max_deg : 0 for j in 1:n])
+            V_ext = hcat(V_ext, rand_arr_ff(F, n))
+        end
     end
     M = MCI(V_ext, A_ext)
 
     # set up path
-    p0 = forgetful_lift(A_size + n + 1, collect(1:A_size))
-    p1 = forgetful_lift(A_size + n + 1, collect(A_size+1:A_size + n + 1))
+    A_ext_size = size(A_ext, 2)
+    p0 = forgetful_lift(A_ext_size, collect(1:A_size))
+    p1 = forgetful_lift(A_ext_size, collect(A_size+1:A_ext_size))
 
-    # initial mixed cell
-    init_mc = MixedCell([collect(A_size+1:A_size + n + 1)], M)
-    wd = WalkData(M, [init_mc])
+    # initial mixed cells
+    init_mc = if no_multiset
+        sd = subdivision_of_points(transpose(A), -p0.eps[A_size+1:end])
+        [MixedCell([c .+ A_size], M) for c in maximal_cells(sd)]
+    else
+        [MixedCell([collect(A_size+1:A_ext_size)], M)]
+    end
 
-    tvol = vol(init_mc, A_ext)
-    return tvol, A_ext, wd, p0, p1
+    wd = WalkData(M, init_mc)
+
+    return A_ext, wd, p0, p1
 end
 
 # --- Functions related to mixed cell cones --- #

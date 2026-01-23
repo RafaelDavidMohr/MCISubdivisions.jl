@@ -39,7 +39,7 @@ struct DualNumber
 end
 
 function Base.show(io::IO, a::DualNumber)
-    print(io, "$(round(a.r_fl, digits = 3)) + ϵ ⋅ $(round(a.eps_fl, digits = 3))")
+    print(io, "$(round(a.r_fl, digits = 3)) + ε ⋅ $(round(a.eps_fl, digits = 3))")
 end
 
 function Base.iszero(a::DualNumber)
