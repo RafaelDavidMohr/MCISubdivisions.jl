@@ -38,7 +38,7 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     Vp = Matrix(rand_mix * matrix(F, Vp))
     A_ext, wd, p0, p1 = starting_system(A, Vp)
 
-    walk_homotopy!(wd, p0, p1, A_ext)
+    walk_homotopy!(wd, p0, p1)
 
     A_size = size(A, 2)
     M_final = MCI(wd.M.V[:, 1:A_size], wd.M.A_modP[:, 1:A_size], wd.M.A_Fl[:, 1:A_size])
