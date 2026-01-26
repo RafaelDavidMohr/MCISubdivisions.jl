@@ -1,5 +1,59 @@
 # --- Functions for tropical elimination --- #
 
+function construct_polytope!(E::ElimData)
+
+    n = size(E.M.V, 1) - 1 # n + 1 input equations
+    k = size(E.A, 1) - n - 1
+    amb_dim = size(E.A, 1) + 1 
+    println("computing initial vertices")
+
+    w = rand(-1000:1000, amb_dim)
+    P = convex_hull([vert])
+    dm = 0
+    while dm < amb_dim # assume that polytope is full dimensional
+        af = affine_hull(P)
+        cfs = rand(-1000:1000, length(af))
+        w = sum(cfs .* [(Int).(h.a)[1, :] for h in af])
+        val = sum(cfs .* [Int(h.b) for h in affine_hull(C)])
+        val2 = elim_supp_func!(E, w)
+        w = val == val2 ? -w : w
+        vert = elim_vertex!(w)
+        P = convex_hull(P, convex_hull([vert]))
+    end
+    println("done")
+
+    facts_confirmed = AffineHalfspace{QQFieldElem}[]
+
+    all_confirmed = false
+    while !all_confirmed
+        facts = facets(P)
+        all_confirmed = true
+
+        for fc in facts
+            fc in facts_confirmed && continue
+
+            nv = (Int).(-fc.a[1,:])
+            val = -fc.b
+            val2 = elim_supp_func!(E, nv)
+            if val2 == val
+                println("facet confirmed")
+                push!(facts_confirmed, fc)
+                continue
+            end
+
+            new_vert = elim_vertex!(E, nv)
+
+            if !(new_vert in P) # check if new vertex was actually obtained
+                P = convex_hull(P, convex_hull([new_vert]))
+                all_confirmed = false
+                break
+            end
+        end
+    end
+
+    return P
+end
+
 function elim_vertex!(E::ElimData,
                       covec::Vector{Int})
 
