@@ -1,10 +1,10 @@
 # --- Functions for mixed subdivisions and homotopies --- #
 
-function walk_homotopy!(w::WalkData, p0::Lift, p1::Lift)
+function walk_homotopy!(w::WalkData, p0::DualVector, p1::DualVector)
 
     @info "starting homotopy"
-    if p0.r == p1.r
-        @info "infinitesimal deformation, nothing to do"
+    if p0.r == p1.r && p0.eps == p1.eps
+        @info "no deformation, nothing to do"
         return
     end
 
@@ -375,7 +375,7 @@ function is_dual_tropical_root(wd::WalkData, m::MixedCell, d::Vector{Float64})
 end
 
 function is_in_mixed_cell_cone(wd::WalkData, m::MixedCell, d::Vector{Float64},
-                               p0::Lift, p1::Lift)
+                               p0::DualVector, p1::DualVector)
 
     tst = true
     for c in keys(wd.walls)

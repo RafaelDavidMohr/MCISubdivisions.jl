@@ -178,13 +178,13 @@ function LinearAlgebra.dot(v::Vector{Float64}, c::Hyperplane)
     return res_fl
 end
 
-function LinearAlgebra.dot(l::Lift, c::Hyperplane)
+function LinearAlgebra.dot(l::DualVector, c::Hyperplane)
     return DualNumber(dot(l.r, c)..., dot(l.eps, c)...)
 end
 
 # --- homotopy paths --- #
     
-function first_intersection!(l0::Lift, l1::Lift,
+function first_intersection!(l0::DualVector, l1::DualVector,
                              hyperplanes::AbstractSet{Hyperplane},
                              last_h::Union{Nothing, Hyperplane},
                              wd::WalkData)
@@ -224,28 +224,28 @@ function first_intersection!(l0::Lift, l1::Lift,
     return best_h, best_t
 end
 
-function crossing_val(l0::Lift, l1::Lift, c::Hyperplane)
+function crossing_val(l0::DualVector, l1::DualVector, c::Hyperplane)
     l0d = dot(l0, c)
     l1d = dot(l1, c)
     denom = l0d - l1d
 
     F = prime_field(l0d)
-    if iszero(l0d.r_P) && iszero(l1d.r_P)
-        try
+    try
+        if iszero(l0d.r_P) && iszero(l1d.r_P)
             return DualNumber(l0d.eps_fl * denom.eps_fl^(-1),
                               l0d.eps_P * denom.eps_P^(-1), 0.0, F(0))
-        catch e
-            if isa(e, DivideError)
-                println(l0)
-                println(l1)
-                println(c.cfs_P)
-                println(denom)
-                println(characteristic(F))
-                rethrow(e)
-            end 
+        elseif iszero(denom.r_P)
+            return DualNumber(2.0, F(2), 0.0, F(0))
+        else
+            return l0d * inv(denom)
         end
-    else
-        return l0d * inv(denom)
+    catch e
+        println(l0)
+        println(l1)
+        println(c.cfs_P)
+        println(denom)
+        println(characteristic(F))
+        rethrow(e)
     end
 end
 
@@ -278,7 +278,7 @@ function forgetful_lift(A_size::Int, forget_inds::Vector{Int})
             d[i] = 1
         end
     end
-    return Lift(d)
+    return DualVector(d)
 end
 
 function get_support(F::Vector{<:MPolyRingElem})

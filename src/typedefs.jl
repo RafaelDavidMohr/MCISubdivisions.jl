@@ -186,17 +186,17 @@ end
 
 # --- Lift --- #
 
-struct Lift
+struct DualVector
     r::Vector{Int}
     eps::Vector{Int}
 end
 
-function Lift(r::Vector{Int})
+function DualVector(r::Vector{Int})
     l = length(r)
-    return Lift(r, rand(-10000:10000, l))
+    return DualVector(r, rand(-10000:10000, l))
 end
 
-function test_vector(l::Lift)
+function test_vector(l::DualVector)
     eps = 10^(-5)
     return l.r + eps .* l.eps
 end
@@ -226,7 +226,7 @@ mutable struct ElimData
     M_elim::MCI
     A::Matrix{Int}
     current_ms::Vector{MixedCell}
-    current_lift::Lift
+    current_lift::DualVector
 end
 
 function get_elim_start_data(F::Vector{<:MPolyRingElem})
