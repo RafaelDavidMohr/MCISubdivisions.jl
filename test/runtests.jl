@@ -108,3 +108,11 @@ end
     ms_new = MCIS.gather_mixed_cells(M, wd)
     @test sum([MCIS.vol(m, A) for m in ms_new]) == 5
 end
+
+@testset "A-discriminants" begin
+    A = [5 4 3 2 1 0]
+    F = get_A_disc_equations(A)
+    Q = get_eliminant_polytope(F)
+    @test length(vertices(Q)) == 16
+    @test dim(Q) == 4
+end
