@@ -170,7 +170,7 @@ end
 function circuits(M::RelativeMCI)
     F = prime_field_V(M)
     matr = matroid_from_matrix_columns(matrix(F, M.V_rel))
-    return (c -> M.rel_to_base[c]).(Oscar.circuits(matr))
+    return Oscar.circuits(matr)
 end
 
 indices(M::MCI) = collect(1:size(M.A_modP, 2))

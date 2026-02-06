@@ -55,6 +55,44 @@ function vol(m::MixedCell, A::Matrix{Int})
     return round(Int, abs(LinearAlgebra.det(lu)))
 end
 
+function real_root_count(m::MixedCell, A::Matrix{Int}, V::Matrix{QQFieldElem})
+    F = GF(2)
+    n = size(A, 1)
+    ml = sum((length).(m.inds))
+    ev = matrix(F, vcat(A[:, vcat(m.inds...)], ones(Int, 1, ml)))
+    k = permutedims(Matrix(kernel(ev)))
+    enc = size(k, 2)
+    sol = try
+        solve(ev, sgn(m, V))
+    catch ArgumentError
+        return 0
+    end
+    size(k, 2) == 0 && return 1
+    result_set = Set{Vector{FqFieldElem}}()
+    for i in 0:(2^enc -1)
+        new_sol = sol + k*digits(i, base=2, pad=enc)
+        push!(result_set, new_sol[1:n])
+    end
+    return length(result_set)
+end
+
+function sgn(m::MixedCell, V::Matrix{QQFieldElem})
+    F = GF(2)
+    sgns = eltype(F)[]
+    for (i, S) in enumerate(m.inds)
+        for j in S
+            V_submat = V[:, vcat([p == i ? [l for l in S if l != j] : m.inds[p][2:end] for p in 1:length(m.inds)]...)]
+            dt = det(matrix(QQ, V_submat))
+            dt > 0 ? push!(sgns, F(1)) : push!(sgns, F(0))
+        end
+    end
+    return sgns
+end
+
+function real_root_count(ms::Vector{MixedCell}, A::Matrix{Int}, V::Matrix{QQFieldElem})
+    return sum([real_root_count(m, A, V) for m in ms])
+end
+
 function cayley_indices(m::MixedCell, j::Int)
     if j == length(m)
         return m.loc_inds[j]

@@ -23,6 +23,16 @@ function walk_homotopy!(w::WalkData, p0::DualVector, p1::DualVector)
     end
 end
 
+function deform_subdivision(A::Matrix{Int}, V::Matrix{C},
+                            ms::Vector{MixedCell}, p0::DualVector,
+                            p1::DualVector) where C
+
+    M = MCI(V, A)
+    wd = WalkData(M, ms)
+    walk_homotopy!(wd, p0, p1)
+    return gather_mixed_cells(M, wd)
+end
+
 function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem})
     n = size(A, 1)
     A_size = size(A, 2)
