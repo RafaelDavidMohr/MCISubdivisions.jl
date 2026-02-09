@@ -1,6 +1,20 @@
 # --- Functions for mixed subdivisions and homotopies --- #
 
-function walk_homotopy!(w::WalkData, p0::DualVector, p1::DualVector)
+function walk_homotopy!(w::WalkData, p0::DualVector, p1::DualVector;
+                        rr_counter=empty_rr_counter())
+
+    trr = rr_counter.target_rr_count
+
+    if trr >= 0
+        ms = gather_mixed_cells(w.M, w)
+        for m in ms
+            add_mixed_cell!(rr_counter, m)
+        end
+        if rr_count(rr_counter) == trr
+            @info "target real root count $(rr_counter.target_rr_count) reached"
+            return true, dual_zero(prime_field_A(w.M))
+        end
+    end
 
     @info "starting homotopy"
     if p0.r == p1.r && p0.eps == p1.eps
@@ -13,24 +27,31 @@ function walk_homotopy!(w::WalkData, p0::DualVector, p1::DualVector)
         c_int, t_cross = first_intersection!(p0, p1, keys(w.walls), c_prev, w)
         if isnothing(c_int)
             @info "no intersection left, finished"
-            return
+            return false, dual_zero(GF(2))
         end
         @info "intersection found"
         @info "crossing at $(t_cross)"
         @info "$(length(w.walls[c_int])) mixed cells to flip"
-        walk_wall!(w, c_int)
+        walk_wall!(w, c_int, rr_counter)
+        if trr >= 0 && rr_count(rr_counter) == trr
+            @info "target real root count $(rr_counter.target_rr_count) reached"
+            return true, t_cross
+        end
         c_prev = c_int
     end
+    return false, dual_zero(GF(2)) # only for type stability
 end
 
 function deform_subdivision(A::Matrix{Int}, V::Matrix{C},
                             ms::Vector{MixedCell}, p0::DualVector,
-                            p1::DualVector) where C
+                            p1::DualVector, target_rr_count::Int) where C
+
+    rr_counter = RRCounter(A, V, target_rr_count)
 
     M = MCI(V, A)
     wd = WalkData(M, ms)
-    walk_homotopy!(wd, p0, p1)
-    return gather_mixed_cells(M, wd)
+    cnt_reached, t_cross = walk_homotopy!(wd, p0, p1, rr_counter = rr_counter)
+    return cnt_reached, t_cross, gather_mixed_cells(M, wd)
 end
 
 function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem})
@@ -76,16 +97,19 @@ end
 
 # --- Functions related to mixed cell cones --- #
 
-function walk_wall!(wd::WalkData, c::Hyperplane)
+function walk_wall!(wd::WalkData, c::Hyperplane, rr_counter::RRCounter)
     active_mc_data = wd.walls[c]
     delete!(wd.walls, c) 
     cnt = 0
     for (m, act_index, sgn) in active_mc_data
-        delete_mixed_cell!(wd, m)
+        delete_mixed_cell!(wd, m, rr_counter)
         new_mixed_cells = mixed_cell_flip(m, c, wd.M, act_index, sgn)
         cnt += length(new_mixed_cells)
         for new_mc in new_mixed_cells
             compute_active_walls!(new_mc, wd.M, wd.walls)
+            if rr_counter.target_rr_count >= 0
+                add_mixed_cell!(rr_counter, new_mc)
+            end
         end
     end
     @info "$(cnt) new mixed cells (possible duplicates)"

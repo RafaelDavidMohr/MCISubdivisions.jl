@@ -335,13 +335,14 @@ function rand_arr_ff(F::FqField, dims...)
     return (F).(rand(0:characteristic(F)-1, dims...))
 end
 
-function delete_mixed_cell!(wd::WalkData, m::MixedCell)
+function delete_mixed_cell!(wd::WalkData, m::MixedCell, rr_counter::RRCounter)
     for c in keys(wd.walls)
         filter!(((m0, i, j),) -> m != m0, wd.walls[c])
         if isempty(wd.walls[c])
             delete!(wd.walls, c)
         end
     end
+    delete!(rr_counter.cnt, m)
 end
 
 function gather_mixed_cells(M::MCI, wd::WalkData, max_ind=0::Int)

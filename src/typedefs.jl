@@ -240,3 +240,28 @@ function get_elim_start_data(F::Vector{<:MPolyRingElem})
 
     return ElimData(M, M_elim, A, init_cells, init_lift)
 end
+
+# --- RRCounter (for convenience) --- #
+
+struct RRCounter
+    A::Matrix{Int}
+    V::Matrix{QQFieldElem}
+    cnt::Dict{MixedCell, Int}
+    target_rr_count::Int
+
+    function RRCounter(A::Matrix{Int}, V::Matrix{QQFieldElem}, target_rr_count::Int)
+        return new(A, V, Dict{MixedCell, Int}(), target_rr_count)
+    end
+end
+
+function empty_rr_counter()
+    return RRCounter(Matrix{Int}(undef, 0, 0), Matrix{QQFieldElem}(undef, 0, 0), -1)
+end
+
+function rr_count(rr_counter::RRCounter)
+    return sum([rr_counter.cnt[m] for m in keys(rr_counter.cnt)])
+end
+
+function add_mixed_cell!(rr_counter::RRCounter, m::MixedCell)
+    rr_counter.cnt[m] = real_root_count(m, rr_counter.A, rr_counter.V)
+end
