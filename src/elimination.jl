@@ -79,7 +79,7 @@ function elim_vertex!(E::ElimData,
             proj_mtx[i, :] = vcat(onv_unit_vec, unit_vec)
         end
         _, onv = outer_normal_vector(E.M_elim, m, (QQ).(E.current_lift.r))
-        covec_ext = vcat(onv, test_vector(covec_d))
+        covec_ext = vcat(onv, covec)
         sp = sortperm(1:size(E.M.A_Fl, 2),
                       rev = true,
                       by = i -> dot(covec_ext, E.M.A_Fl[:, i]))
@@ -104,12 +104,12 @@ function elim_supp_func!(E::ElimData,
     A_elim = E.A[1:n, :] # last coordinates will be coordinates of eliminant
     for m in E.current_ms
         _, onv = outer_normal_vector(E.M_elim, m, (QQ).(E.current_lift.r))
-        covec_ext = vcat(onv, covec)
+        covec_ext = (x -> round(Int, x)).(vcat(onv, covec))
         dps = vec(permutedims(covec_ext) * E.A)
         sp = sortperm(dps, rev = true)
-        V_red = Oscar.echelon_form(matrix(F, E.M.V[:, sp]))
+        V_red = Oscar.echelon_form(matrix(F, E.M.V[:, sp]), reduced = false)
         nz_index = findfirst(!iszero, V_red[end, :])
-        result += round(Int, vol(m, A_elim) * dps[sp[nz_index]])
+        result += (vol(m, A_elim) * dps[sp][nz_index])
     end
     return result
 end
@@ -134,7 +134,7 @@ end
 
 function get_lifting_vector(E::ElimData, covec::DualVector)
     n = size(E.M.V, 1) - 1
-    rn = rand(-10000:10000, length(covec.eps) + n) 
+    rn = rand(-10000:10000, size(E.A, 2)) 
     return DualVector(get_lifting_vector(E, covec.r),
                       get_lifting_vector(E, covec.eps) + rn)
 end

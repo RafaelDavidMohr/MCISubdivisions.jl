@@ -231,6 +231,9 @@ end
 
 function get_elim_start_data(F::Vector{<:MPolyRingElem})
     A, V = get_eci_data(F)
+    K = base_ring(parent(first(F)))
+    rand_mix = matrix(K, (K).(rand(-10000:10000, size(V, 1), size(V, 1))))
+    V = Matrix(rand_mix * matrix(K, V))
     n = length(F) - 1
     A_elim = A[1:n, :]
     M = MCI(V, A)
