@@ -229,6 +229,18 @@ function compute_active_walls!(m::MixedCell,
     end
 end
 
+function secondary_cone(A::Matrix{Int}, V::Matrix{QQFieldElem}, ms::Vector{MixedCell})
+    ineqs = Matrix{QQFieldElem}(undef, 0, size(A, 2))
+    M = MCI(V, A)
+    wd = WalkData(M, ms)
+    for c in keys(wd.walls)
+        _, _, sgn = first(wd.walls[c])
+        cfs = (x -> QQ(rationalize(x, tol=0.1))).(c.cfs_fl) # very dodgy
+        ineqs = sgn ? vcat(ineqs, permutedims(cfs)) : vcat(ineqs, -permutedims(cfs))
+    end
+    return ineqs, cone_from_inequalities(ineqs)
+end
+
 # --- MCI functions --- #
 
 function localize(M::RelativeMCI, S::Vector{Int}, rem_inds::Vector{Int})

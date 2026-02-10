@@ -197,7 +197,7 @@ function DualVector(r::Vector{Int})
 end
 
 function test_vector(l::DualVector)
-    eps = 10^(-5)
+    eps = 10^(-10)
     return l.r + eps .* l.eps
 end
 
