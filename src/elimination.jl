@@ -15,12 +15,13 @@ function construct_polytope!(E::ElimData)
         af = affine_hull(P)
         cfs = rand(-1000:1000, length(af))
         w = sum(cfs .* [intify(h.a[1, :]) for h in af])
-        val = sum(cfs .* [intify(h.b) for h in af])
-        val2 = elim_supp_func!(E, w)
-        w = val == val2 ? -w : w
         vert = elim_vertex!(E, w)
+        if all(h -> vert in h, af) 
+            vert = elim_vertex!(E, -w)
+            all(h -> vert in h, af) && break
+        end
+        println("vertex $(vert)")
         P = convex_hull(P, convex_hull([vert]))
-        dim(P) == dm && break
         dm = dim(P)
     end
     @info "done"
@@ -47,10 +48,12 @@ function construct_polytope!(E::ElimData)
             new_vert = elim_vertex!(E, nv)
 
             if !(new_vert in P) # check if new vertex was actually obtained
-                @info "new vertex"
+                @info "new vertex $(new_vert)"
                 P = convex_hull(P, convex_hull([new_vert]))
                 all_confirmed = false
                 break
+            else
+                @info "strange!"
             end
         end
     end
@@ -79,7 +82,7 @@ function elim_vertex!(E::ElimData,
             proj_mtx[i, :] = vcat(onv_unit_vec, unit_vec)
         end
         _, onv = outer_normal_vector(E.M_elim, m, (QQ).(E.current_lift.r))
-        covec_ext = vcat(onv, covec)
+        covec_ext = vcat(onv, test_vector(covec_d))
         sp = sortperm(1:size(E.M.A_Fl, 2),
                       rev = true,
                       by = i -> dot(covec_ext, E.M.A_Fl[:, i]))
