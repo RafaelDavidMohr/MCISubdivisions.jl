@@ -20,7 +20,6 @@ function construct_polytope!(E::ElimData)
             vert = elim_vertex!(E, -w)
             all(h -> vert in h, af) && break
         end
-        println("vertex $(vert)")
         P = convex_hull(P, convex_hull([vert]))
         dm = dim(P)
     end
@@ -48,12 +47,10 @@ function construct_polytope!(E::ElimData)
             new_vert = elim_vertex!(E, nv)
 
             if !(new_vert in P) # check if new vertex was actually obtained
-                @info "new vertex $(new_vert)"
+                @info "new vertex"
                 P = convex_hull(P, convex_hull([new_vert]))
                 all_confirmed = false
                 break
-            else
-                @info "strange!"
             end
         end
     end
@@ -81,11 +78,12 @@ function elim_vertex!(E::ElimData,
             onv_unit_vec = outer_normal_vector(A_elim, m, (QQ).(lift_unit_vec))
             proj_mtx[i, :] = vcat(onv_unit_vec, unit_vec)
         end
-        _, onv = outer_normal_vector(E.M_elim, m, (QQ).(E.current_lift.r))
+        lft = get_lifting_vector(E, covec_d, randomize = false)
+        onv = outer_normal_vector(A_elim, m, (QQ).(test_vector(lft)))
         covec_ext = vcat(onv, test_vector(covec_d))
-        sp = sortperm(1:size(E.M.A_Fl, 2),
+        sp = sortperm(1:size(E.A, 2),
                       rev = true,
-                      by = i -> dot(covec_ext, E.M.A_Fl[:, i]))
+                      by = i -> dot(covec_ext, E.A[:, i]))
         V_red = Oscar.echelon_form(matrix(F, E.M.V[:, sp]))
         nz_index = findfirst(!iszero, V_red[end, :])
         result += (vol(m, A_elim) * (proj_mtx * E.A[:, sp[nz_index]]))
@@ -135,11 +133,12 @@ function get_lifting_vector(E::ElimData, covec::Vector{Int})
     return vec(permutedims(vcat(zeros(Int, n), covec)) * E.A)
 end
 
-function get_lifting_vector(E::ElimData, covec::DualVector)
+function get_lifting_vector(E::ElimData, covec::DualVector; randomize=true)
     n = size(E.M.V, 1) - 1
     rn = rand(-10000:10000, size(E.A, 2)) 
+    epsp = get_lifting_vector(E, covec.eps)
     return DualVector(get_lifting_vector(E, covec.r),
-                      get_lifting_vector(E, covec.eps) + rn)
+                      randomize ? epsp + rn : epsp)
 end
 
 function intify(a::QQFieldElem)

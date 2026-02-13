@@ -161,10 +161,12 @@ end
 
 function MCI(V::Matrix{C}, A::Matrix{Int64}) where C
     Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
+    F = parent(first(Vp))
+    rand_mix = matrix(F, (F).(rand(1:characteristic(F)-1, size(V, 1), size(V, 1))))
     A_modP = reduce_mod_rand_prime(A)
     A_Fl = (Float64).(A)
     
-    return MCI(Vp, A_modP, A_Fl)
+    return MCI(Matrix(rand_mix * matrix(F, Vp)), A_modP, A_Fl)
 end
 
 function circuits(M::RelativeMCI)
@@ -196,9 +198,8 @@ function DualVector(r::Vector{Int})
     return DualVector(r, rand(-10000:10000, l))
 end
 
-function test_vector(l::DualVector)
-    eps = 10^(-10)
-    return l.r + eps .* l.eps
+function test_vector(l::DualVector; rat=10000)
+    return rat*l.r + l.eps
 end
 
 # --- WalkData --- # 
@@ -231,15 +232,12 @@ end
 
 function get_elim_start_data(F::Vector{<:MPolyRingElem})
     A, V = get_eci_data(F)
-    K = base_ring(parent(first(F)))
-    rand_mix = matrix(K, (K).(rand(-10000:10000, size(V, 1), size(V, 1))))
-    V = Matrix(rand_mix * matrix(K, V))
     n = length(F) - 1
     A_elim = A[1:n, :]
     M = MCI(V, A)
-    M_elim = MCI(V[1:n, :], A_elim)
+    M_elim = MCI(M.V[1:n, :], M.A_modP[1:n, :], M.A_Fl[1:n, :])
     
-    init_lift, init_cells = mixed_subdivision(A_elim, V[1:n, :])
+    init_lift, init_cells = mixed_subdivision(A_elim, M_elim.V)
 
     return ElimData(M, M_elim, A, init_cells, init_lift)
 end

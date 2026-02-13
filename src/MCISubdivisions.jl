@@ -34,9 +34,6 @@ end
 
 function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
-    F = parent(first(Vp))
-    rand_mix = matrix(F, (F).(rand(1:characteristic(F)-1, size(V, 1), size(V, 1))))
-    Vp = Matrix(rand_mix * matrix(F, Vp))
     A_ext, wd, p0, p1 = starting_system(A, Vp)
 
     walk_homotopy!(wd, p0, p1)
