@@ -275,51 +275,32 @@ end
 # --- Mixed cell checking/computation for testing --- #
 
 function outer_normal_vector(A::Matrix{Int}, m::MixedCell,
-                             d::Vector{QQFieldElem})
+                             d::Vector{C}) where C
 
-    n = size(A, 1)
+    
+
     A_lifted = vcat(A, transpose(d))
-
-    eqns = Matrix{QQFieldElem}(undef, n + 1, 0)
-    for S in m.inds
-        a = A_lifted[:, first(S)]
-        for i in S[2:end]
-            eqns = hcat(eqns, A_lifted[:, i] - a)
-        end
-    end
-
-    K = kernel(matrix(QQ, eqns))
-    @assert isone(size(K, 1)) "mixed cell does not lift to a hyperplane"
-    K *= K[1, end]^(-1)
-    return K[1, 1:n]
+    K = normal_space(A_lifted, m.inds)
+    @assert isone(size(K, 2)) "mixed cell does not lift to a hyperplane"
+    K *= K[end, 1]^(-1)
+    return K[1:n, 1]
 end
 
 function outer_normal_vector(M::MCI, m::MixedCell,
-                             d::Vector{QQFieldElem})
+                             d::Vector{C}) where C
 
-    n = ambient_dim(M)
-    F = prime_field_A(M)
     A_modP_lifted = vcat(M.A_modP, transpose((F).(d)))
     A_Fl_lifted = vcat(M.A_Fl, transpose((Float64).(d)))
 
-    eqns_modP = Matrix{FqFieldElem}(undef, n + 1, 0)
-    eqns_Fl = Matrix{Float64}(undef, 0, n + 1)
-    for S in m.inds
-        a_modP = A_modP_lifted[:, first(S)]
-        a_Fl = A_Fl_lifted[:, first(S)]
-        for i in S[2:end]
-            eqns_modP = hcat(eqns_modP, A_modP_lifted[:, i] - a_modP)
-            eqns_Fl = vcat(eqns_Fl, transpose(A_Fl_lifted[:, i] - a_Fl))
-        end
-    end
+    K_modP = normal_space(A_modP_lifted, m.inds)
+    @assert isone(size(K_modP, 2)) "mixed cell does not lift to a hyperplane"
+    K_modP *= K_modP[end, 1]^(-1)
 
-    K_modP = kernel(matrix(F, eqns_modP))
-    @assert isone(size(K_modP, 1)) "mixed cell does not lift to a hyperplane"
-    K_modP *= K_modP[1, end]^(-1)
-
-    K_Fl = nullspace(eqns_Fl)
+    A_Fl_lifted = vcat(M.A_Fl, transpose((Float64).(d)))
+    K_Fl = normal_space(A_Fl_lifted, m.inds)
     K_Fl *= K_Fl[end, 1]^(-1)
-    return K_modP[1, 1:n], K_Fl[1:n, 1]
+
+    return K_modP[1:n, 1], K_Fl[1, 1:n]
 end
 
 function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},

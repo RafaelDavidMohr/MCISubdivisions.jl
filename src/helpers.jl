@@ -55,6 +55,13 @@ function vol(m::MixedCell, A::Matrix{Int})
     return round(Int, abs(LinearAlgebra.det(lu)))
 end
 
+# volume of a full-dimensional sum of simplices
+function vol(m::Vector{Vector{Int}}, A::Matrix{Int})
+    mat = hcat([linear_span(A, S) for S in m]...)
+    D = snf(matrix(ZZ, mat))
+    return Int(prod([D[i,i] for i in 1:min(size(D, 1), size(D, 2))]))
+end
+
 function real_root_count(m::MixedCell, A::Matrix{Int}, V::Matrix{QQFieldElem})
     F = GF(2)
     n = size(A, 1)
@@ -180,6 +187,30 @@ function is_affine_independent(A::Matrix{C}, inds::Vector{Int}) where C
     F = parent(first(A))
     L = linear_span(A, inds)
     return rank(matrix(F, L)) == length(inds) - 1
+end
+
+function normal_space(A::Matrix{C}, m::Vector{Vector{Int}}) where C
+
+    n = size(A, 1)
+    eqns = Matrix{C}(undef, n, 0)
+    for S in m
+        a = A[:, first(S)]
+        for i in S[2:end]
+            eqns = hcat(eqns, A[:, i] - a)
+        end
+    end
+
+    if C <: Float64
+        return nullspace(eqns)
+    end
+
+    F = if C <: Int
+        QQ
+    else
+        parent(first(A))
+    end
+
+    return permutedims(Matrix(kernel(matrix(F, eqns))))
 end
 
 # --- circuits --- #

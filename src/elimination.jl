@@ -102,15 +102,43 @@ function elim_supp_func!(E::ElimData,
     n = size(E.M.V, 1) - 1 # n + 1 input equations
     k = size(E.A, 1) - n - 1
     result = QQ(0)
-    A_elim = E.A[1:n, :] # last coordinates will be coordinates of eliminant
     for m in E.current_ms
-        _, onv = outer_normal_vector(E.M_elim, m, (QQ).(E.current_lift.r))
-        covec_ext = (x -> round(Int, x)).(vcat(onv, covec))
-        dps = vec(permutedims(covec_ext) * E.A)
+        Al = vcat(E.A[1:n, :], permutedims(E.current_lift.r))
+        println("cell indices $(m.inds)")
+        ns = normal_space(Al, m.inds)
+        println("normal space: ")
+        display(ns)
+        if size(ns, 2) > 1
+            println("---")
+            continue
+        end
+        troproot = (Int).(lcm((denominator).(ns[:, 1]))*ns[:, 1])
+        if !iszero(last(troproot))
+            ns *= last(troproot)^(-1)
+        end
+        dps = vec(permutedims(troproot) * Al)
+        println("dot products: $(dps)")
+        _, i = findmax(dps)
+        if !(i in first(m.inds))
+            if !iszero(last(troproot))
+                println("---")
+                continue
+            end
+            troproot = -troproot
+            dps = -dps
+            _, i = findmax(dps)
+            if !(i in first(m.inds))
+                println("---")
+                continue
+            end
+        end
         sp = sortperm(dps, rev = true)
+        println("sorted indss: $(sp)")
         V_red = Oscar.echelon_form(matrix(F, E.M.V[:, sp]), reduced = false)
+        println("rank $(rank(matrix(F, E.M.V[:, first(m.inds)])))")
         nz_index = findfirst(!iszero, V_red[end, :])
-        result += (vol(m, A_elim) * dps[sp][nz_index])
+        result += (vol(m.inds, E.A) * dps[sp][nz_index])
+        println("---")
     end
     return result
 end
