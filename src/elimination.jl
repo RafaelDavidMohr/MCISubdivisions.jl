@@ -71,22 +71,40 @@ function elim_vertex!(E::ElimData,
     result = zeros(QQFieldElem, k + 1)
     A_elim = E.A[1:n, :] # last coordinates will be coordinates of eliminant
     for m in E.current_ms
+        dps, troproot = get_tropical_root(E.A[1:n, :], E.current_lift.r, m.inds)
+        isnothing(troproot) && continue
         proj_mtx = Matrix{QQFieldElem}(undef, k+1, n+k+1)
         for i in 1:k+1
             unit_vec = [j == i ? 1 : 0 for j in 1:k+1]
             lift_unit_vec = get_lifting_vector(E, unit_vec)
-            onv_unit_vec = outer_normal_vector(A_elim, m, (QQ).(lift_unit_vec))
-            proj_mtx[i, :] = vcat(onv_unit_vec, unit_vec)
+            Al = vcat(E.A[1:n, :], permutedims(lift_unit_vec))
+            ns = normal_space(Al, m.inds)
+            size(ns, 2) > 1 && error("don't know what to do in this case")
+            onv_unit_vec = ns[:, 1]
+            if iszero(last(onv_unit_vec))
+                proj_mtx[i, :] = vcat(onv_unit_vec[1:end-1], zeros(Int, k+1))
+            else
+                onv_unit_vec *= last(onv_unit_vec)^(-1)
+                proj_mtx[i, :] = vcat(onv_unit_vec[1:end-1], unit_vec)
+            end
         end
-        lft = get_lifting_vector(E, covec_d, randomize = false)
-        onv = outer_normal_vector(A_elim, m, (QQ).(test_vector(lft)))
-        covec_ext = vcat(onv, test_vector(covec_d))
-        sp = sortperm(1:size(E.A, 2),
-                      rev = true,
-                      by = i -> dot(covec_ext, E.A[:, i]))
-        V_red = Oscar.echelon_form(matrix(F, E.M.V[:, sp]))
+        troproot_ext = if iszero(last(troproot))
+            vcat(troproot[1:end-1], zeros(Int, length(covec)))
+        else
+            vcat(troproot[1:end-1], covec)
+        end
+        sol = solve(matrix(QQ, transpose(proj_mtx)),
+                    (QQ).(troproot_ext), side = :right)
+        for i in 1:length(sol)
+            if sol[i] != covec[i]
+                proj_mtx[i, :] = -proj_mtx[i, :]
+            end
+        end
+
+        sp = sortperm(dps, rev = true)
+        V_red = Oscar.echelon_form(matrix(F, E.M.V[:, sp]), reduced = false)
         nz_index = findfirst(!iszero, V_red[end, :])
-        result += (vol(m, A_elim) * (proj_mtx * E.A[:, sp[nz_index]]))
+        result += (vol(m.inds, E.A) * (proj_mtx * E.A[:, sp[nz_index]]))
     end
     return result
 end
@@ -103,44 +121,39 @@ function elim_supp_func!(E::ElimData,
     k = size(E.A, 1) - n - 1
     result = QQ(0)
     for m in E.current_ms
-        Al = vcat(E.A[1:n, :], permutedims(E.current_lift.r))
-        println("cell indices $(m.inds)")
-        ns = normal_space(Al, m.inds)
-        println("normal space: ")
-        display(ns)
-        if size(ns, 2) > 1
-            println("---")
-            continue
-        end
-        troproot = (Int).(lcm((denominator).(ns[:, 1]))*ns[:, 1])
-        if !iszero(last(troproot))
-            ns *= last(troproot)^(-1)
-        end
-        dps = vec(permutedims(troproot) * Al)
-        println("dot products: $(dps)")
-        _, i = findmax(dps)
-        if !(i in first(m.inds))
-            if !iszero(last(troproot))
-                println("---")
-                continue
-            end
-            troproot = -troproot
-            dps = -dps
-            _, i = findmax(dps)
-            if !(i in first(m.inds))
-                println("---")
-                continue
-            end
-        end
+        dps, troproot = get_tropical_root(E.A[1:n, :], E.current_lift.r, m.inds)
+        isnothing(troproot) && continue
         sp = sortperm(dps, rev = true)
-        println("sorted indss: $(sp)")
         V_red = Oscar.echelon_form(matrix(F, E.M.V[:, sp]), reduced = false)
-        println("rank $(rank(matrix(F, E.M.V[:, first(m.inds)])))")
         nz_index = findfirst(!iszero, V_red[end, :])
         result += (vol(m.inds, E.A) * dps[sp][nz_index])
-        println("---")
     end
     return result
+end
+
+function get_tropical_root(A::Matrix{Int64}, lift::Vector{Int},
+                           m_inds::Vector{Vector{Int}})
+
+    Al = vcat(A, permutedims(lift))
+    ns = normal_space(Al, m_inds)
+    size(ns, 2) > 1 && return nothing, nothing
+
+    troproot = lcm((denominator).(ns[:, 1]))*ns[:, 1]
+    if !iszero(last(troproot))
+        troproot *= last(troproot)^(-1)
+    end
+
+    dps = vec(permutedims(troproot) * Al)
+    _, i = findmax(dps)
+    if !(i in first(m_inds))
+        !iszero(last(troproot)) && return nothing, nothing
+        troproot = -troproot
+        dps = -dps
+        _, i = findmax(dps)
+        !(i in first(m_inds)) && return nothing, nothing
+    end
+
+    return dps, (Int).(troproot)
 end
 
 function covec_mixed_subdivision!(E::ElimData,
