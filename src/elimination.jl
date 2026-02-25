@@ -122,11 +122,20 @@ function elim_supp_func!(E::ElimData,
     result = QQ(0)
     for m in E.current_ms
         dps, troproot = get_tropical_root(E.A[1:n, :], E.current_lift.r, m.inds)
-        isnothing(troproot) && continue
+        if isnothing(troproot)
+            println("---")
+            continue
+        end
+        println("is non-trivial canc")
         sp = sortperm(dps, rev = true)
+        println("sorted :   $(sp)")
+        println("dotps  :   $(dps)")
         V_red = Oscar.echelon_form(matrix(F, E.M.V[:, sp]), reduced = false)
         nz_index = findfirst(!iszero, V_red[end, :])
+        println("volume :   $(vol(m.inds, E.A))")
+        println("las ind:   $(sp[nz_index])")
         result += (vol(m.inds, E.A) * dps[sp][nz_index])
+        println("---")
     end
     return result
 end
@@ -134,23 +143,36 @@ end
 function get_tropical_root(A::Matrix{Int64}, lift::Vector{Int},
                            m_inds::Vector{Vector{Int}})
 
+    println("indices:   $(m_inds)")
     Al = vcat(A, permutedims(lift))
     ns = normal_space(Al, m_inds)
-    size(ns, 2) > 1 && return nothing, nothing
+    if size(ns, 2) > 1
+        println("dim too large")
+        return nothing, nothing
+    end
 
     troproot = lcm((denominator).(ns[:, 1]))*ns[:, 1]
-    if !iszero(last(troproot))
-        troproot *= last(troproot)^(-1)
-    end
+    println("trop root: $(troproot)")
+    # if !iszero(last(troproot))
+    #     troproot *= last(troproot)^(-1)
+    # end
 
     dps = vec(permutedims(troproot) * Al)
     _, i = findmax(dps)
     if !(i in first(m_inds))
-        !iszero(last(troproot)) && return nothing, nothing
+        if !iszero(last(troproot))
+            println("case 1")
+            println("dotps  :   $(dps)")
+            return nothing, nothing
+        end
         troproot = -troproot
         dps = -dps
         _, i = findmax(dps)
-        !(i in first(m_inds)) && return nothing, nothing
+        if !(i in first(m_inds))
+            println("case 2")
+            println("dotps  :   $(dps)")
+            return nothing, nothing
+        end
     end
 
     return dps, (Int).(troproot)
