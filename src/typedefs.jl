@@ -91,63 +91,116 @@ function prime_field(a::DualNumber)
     return parent(a.r_P)
 end
 
+struct DualVector
+    R_fl::Vector{Float64}
+    R_P::Vector{FqFieldElem}
+    E_fl::Vector{Float64}
+    E_P::Vector{FqFieldElem}
+end
+
+Base.length(v::DualVector) = length(v.R_fl)
+
+function Base.hash(v::DualVector, h::UInt)
+    h1 = hash(v.R_P, h)
+    return hash(v.E_P, h1)
+end
+
+function Base.:(==)(v1::DualVector, v2::DualVector)
+    if v1.R_P == v2.R_P
+        return v1.E_P == v2.E_P
+    end
+    return false
+end
+
+function prime_field(v::DualVector)
+    return parent(first(v.R_P))
+end
+
+struct DualMatrix
+    R_fl::Matrix{Float64}
+    R_P::Matrix{FqFieldElem}
+    E_fl::Matrix{Float64}
+    E_P::Matrix{FqFieldElem}
+end
+
+Base.size(A::DualMatrix, i::Int) = size(A.R_fl, i)
+
+function DualMatrix(F::FqField, A::Matrix{Int}, B::Matrix{Int})
+    return DualMatrix((Float64).(A), (F).(A), (Float64).(B), (F).(B))
+end
+
+function prime_field(A::DualMatrix)
+    return parent(first(A.R_P))
+end
+
 # --- Circuit --- #
 
-struct Hyperplane
+struct HypVector
     cfs_P::Vector{FqFieldElem}
     cfs_fl::Vector{Float64}
+end
+
+Base.hash(v::HypVector, h::UInt) = hash(v.cfs_P, h)
+Base.:(==)(v1::HypVector, v2::HypVector) = v1.cfs_P == v2.cfs_P
+
+Base.length(v::HypVector) = length(v.cfs_P)
+
+function prime_field(v::HypVector)
+    return parent(first(v.cfs_P))
+end
+
+struct Hyperplane{V <: Union{DualVector, HypVector}}
+    cfs::V
     nzinds::Vector{Int}
 
-    function Hyperplane(cfs_P::Vector{FqFieldElem}, cfs_fl::Vector{Float64})
-        nzinds = findall(!iszero, cfs_P)
+    function Hyperplane(cfs::V) where V <: Union{HypVector, DualVector}
+        nzinds = if V <: HypVector
+            findall(!iszero, cfs.cfs_P)
+        else
+            sort(union(findall(!iszero, cfs.R_P), findall(!iszero, cfs.E_P)))
+        end
         ni = first(nzinds)
         return new(cfs_P[ni]^(-1) .* cfs_P, cfs_fl[ni]^(-1) .* cfs_fl, nzinds)
    end
 end
 
-function Base.length(c::Hyperplane)
-    return length(c.cfs_P)
-end
-
-function Base.:(==)(c1::Hyperplane, c2::Hyperplane)
-    return c1.cfs_P == c2.cfs_P
-end
-
-function Base.hash(c::Hyperplane, h::UInt)
-    return hash(c.cfs_P, h)
-end
+Base.length(c::Hyperplane) = length(c.cfs_P)
 
 function prime_field(c::Hyperplane)
-    return parent(first(c.cfs_P))
+    return prime_field(c.cfs)
 end
 
 # --- MCI --- #
 
-struct MCI
-    V::Matrix{FqFieldElem} # stored over random finite field to speed up computations
+struct SupportMatrix
     A_modP::Matrix{FqFieldElem}
     A_Fl::Matrix{Float64}
-
-    function MCI(V::Matrix{FqFieldElem}, A_modP::Matrix{FqFieldElem}, A_Fl::Matrix{Float64})
-        @assert size(V, 2) == size(A_modP, 2) "number of coefficients and monomials does not match."
-        F = parent(first(V))
-        return new(V, A_modP, A_Fl)
-    end
 end
 
-struct RelativeMCI
-    base::MCI
-    A_rel::Matrix{FqFieldElem}
-    V_rel::Matrix{FqFieldElem}
+Base.size(A::SupportMatrix, i::Int) = size(A.A_Fl, i
+
+function prime_field(A::SupportMatrix)
+    return parent(first(A.A_modP))
+end
+
+
+struct MCI{M <: Union{DualMatrix, SupportMatrix}}
+    V::Matrix{FqFieldElem} # stored over random finite field to speed up computations
+    A::M
+end
+
+struct RelativeMCI{M <: Union{DualMatrix, SupportMatrix}}
+    base::MCI{M}
+    A_rel::M
     base_to_rel::Vector{Int}
     rel_to_base::Vector{Int}
 
-    function RelativeMCI(base::MCI, A_rel::Matrix{FqFieldElem},
+    function RelativeMCI(base::MCI{M}, A_rel::M,
                          V_rel::Matrix{FqFieldElem},
-                         rel_to_base::Vector{Int})
+                         rel_to_base::Vector{Int}) where {M <: Union{DualMatrix, SupportMatrix}}
 
         base_to_rel = similar(rel_to_base)
-        base_to_rel = zeros(Int, size(base.A_modP, 2))
+        base_to_rel = zeros(Int, size(base.A, 2))
         for (i, j) in enumerate(rel_to_base)
             base_to_rel[j] = i
         end
@@ -156,17 +209,27 @@ struct RelativeMCI
 end
 
 function RelativeMCI(M::MCI)
-    return RelativeMCI(M, M.A_modP, M.V, indices(M))
+    return RelativeMCI(M, M.A, M.V, indices(M))
 end
 
-function MCI(V::Matrix{C}, A::Matrix{Int64}) where C
+# TODO: do we need to dispatch over types here?
+function MCI(V::Matrix{C}, A::Matrix{Int64}; deform = false) where C
     Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
     F = parent(first(Vp))
     rand_mix = matrix(F, (F).(rand(1:characteristic(F)-1, size(V, 1), size(V, 1))))
+
     A_modP = reduce_mod_rand_prime(A)
     A_Fl = (Float64).(A)
+
+    supp = if deform
+        F = parent(first(A_modP))
+        B = rand(-100:100, size(A, 1), size(A, 2))
+        DualMatrix(A_Fl, A_modP, (Float64).(B), (F).(B))
+    else
+        SupportMatrix(A_modP, A_Fl)
+    end
     
-    return MCI(Matrix(rand_mix * matrix(F, Vp)), A_modP, A_Fl)
+    return MCI(Matrix(rand_mix * matrix(F, Vp)), supp)
 end
 
 function circuits(M::RelativeMCI)
@@ -175,37 +238,37 @@ function circuits(M::RelativeMCI)
     return Oscar.circuits(matr)
 end
 
-indices(M::MCI) = collect(1:size(M.A_modP, 2))
+indices(M::MCI) = collect(1:size(M.A, 2))
 indices(M::RelativeMCI) = collect(1:size(M.A_rel, 2))
 
-prime_field_A(M::MCI) = parent(first(M.A_modP))
+prime_field_A(M::MCI) = prime_field(M.A)
 prime_field_V(M::MCI) = parent(first(M.V))
 prime_field_V(M::RelativeMCI) = parent(first(M.V_rel))
 
 function ambient_dim(M::MCI)
-    return size(M.A_modP, 1)
+    return size(M.A, 1)
 end
 
 # --- Lift --- #
 
-struct DualVector
+struct LiftVector
     r::Vector{Int}
     eps::Vector{Int}
 end
 
-function DualVector(r::Vector{Int})
+function LiftVector(r::Vector{Int})
     l = length(r)
-    return DualVector(r, rand(-10000:10000, l))
+    return LiftVector(r, rand(-10000:10000, l))
 end
 
-function test_vector(l::DualVector; rat=10000)
+function test_vector(l::LiftVector; rat=10000)
     return rat*l.r + l.eps
 end
 
 # --- WalkData --- # 
 
-struct WalkData
-    M::MCI
+struct WalkData{M}
+    M::MCI{M}
     walls::Dict{Hyperplane, Set{Tuple{MixedCell, Int, Bool}}}
     nocross::Set{Hyperplane}
 end
@@ -225,7 +288,6 @@ end
 mutable struct ElimData
     M::MCI
     M_elim::MCI
-    A::Matrix{Int}
     current_ms::Vector{MixedCell}
     current_lift::DualVector
 end
@@ -235,11 +297,11 @@ function get_elim_start_data(F::Vector{<:MPolyRingElem})
     n = length(F) - 1
     A_elim = A[1:n, :]
     M = MCI(V, A)
-    M_elim = MCI(M.V[1:n, :], M.A_modP[1:n, :], M.A_Fl[1:n, :])
+    M_elim = MCI(V[1:n, :], A[1:n, :])
     
     init_lift, init_cells = mixed_subdivision(A_elim, M_elim.V)
 
-    return ElimData(M, M_elim, A, init_cells, init_lift)
+    return ElimData(M, M_elim, init_cells, init_lift)
 end
 
 # --- RRCounter (for convenience) --- #

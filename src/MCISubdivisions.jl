@@ -3,6 +3,7 @@ module MCISubdivisions
 using Oscar
 using LinearAlgebra
 using Logging
+using SparseArrays
 
 include("typedefs.jl")
 include("helpers.jl")

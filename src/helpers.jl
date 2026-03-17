@@ -49,8 +49,12 @@ function find_nonzero_indices(V::Matrix{C}, inds::Vector{Int}, test_inds::Vector
     return res
 end
 
-function vol(m::MixedCell, A::Matrix{Int})
-    mat = hcat([linear_span(A, S) for S in m.inds]...)
+function vol(m::MixedCell, M::MCI{M}) where M
+    mat = if M <: SupportMatrix
+        hcat([linear_span(M.A.A_Fl, S) for S in m.inds]...)
+    else
+        hcat([linear_span(M.A.R_Fl, S) for S in m.inds]...)
+    end
     lu = LinearAlgebra.lu(mat)
     return round(Int, abs(LinearAlgebra.det(lu)))
 end
@@ -285,6 +289,25 @@ function crossing_val(l0::DualVector, l1::DualVector, c::Hyperplane)
         println(characteristic(F))
         rethrow(e)
     end
+end
+
+# --- dual number helpers --- #
+
+function find_kernel_generator(A::DualMatrix)
+    F = prime_field(A)
+    k = kernel(matrix(F, A.R_P), side = :right)
+    !isone(size(k, 2)) && error("Kernel not one-dimensional")
+    vr = k[:, 1]
+    nzind = findfirst(!iszero, vr)
+    vr .*= vr[nzind]^(-1)
+    k_ext = solve(matrix(F, A.R_P), -matrix(F, A.E_P)*vr, side = :right)
+
+    k_fl = nullspace(A.R_fl)
+    vr_fl = k_fl[:, 1]
+    vr_fl .*= vr_fl[nzind]^(-1)
+    k_fl_ext = A.R_fl\(-A.E_fl*vr_fl)
+    
+    return DualVector(vr_fl, vr, k_fl_ext[:, 1], k_ext[:, 1])
 end
 
 # --- other helpers --- #
