@@ -44,12 +44,7 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
 end
 
 function get_eliminant_polytope(F::Vector{<:MPolyRingElem})
-    @info "computing initial subdivision"
-    E = with_logger(NullLogger()) do
-        get_elim_start_data(F)
-    end
-    @info "done"
-    return construct_polytope!(E)
+    return
 end
 
 end # module MCISubdivisions

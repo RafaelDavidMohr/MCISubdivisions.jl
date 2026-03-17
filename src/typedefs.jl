@@ -220,34 +220,6 @@ function WalkData(M::MCI,
     return WalkData(M, walls, Set{Hyperplane}())
 end
 
-# --- ElimData --- #
-
-mutable struct ElimData
-    M::MCI
-    M_elim::MCI
-    A::Matrix{Int}
-    A_elim::Matrix{Int}
-    current_ms::Vector{MixedCell}
-    current_lift::DualVector
-end
-
-function get_elim_start_data(F::Vector{<:MPolyRingElem})
-    A, V = get_eci_data(F)
-    return get_elim_start_data(A, V)
-end
-
-function get_elim_start_data(A::Matrix{Int}, V::Matrix{C}) where C
-    n = size(V, 1) - 1
-    U = rand(-10:10, n, size(A, 1))
-    A_elim = U*A
-    M = MCI(V, A)
-    M_elim = MCI(M.V[1:n, :], A_elim)
-    
-    init_lift, init_cells = mixed_subdivision(A_elim, M_elim.V)
-
-    return ElimData(M, M_elim, A, A_elim, init_cells, init_lift)
-end
-
 # --- RRCounter (for convenience) --- #
 
 struct RRCounter
