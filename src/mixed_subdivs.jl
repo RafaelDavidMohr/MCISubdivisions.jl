@@ -172,60 +172,42 @@ function compute_active_walls!(m::MixedCell,
     caley_config_modP = Matrix{FqFieldElem}(undef, n + k, 0)
     caley_config_Fl = Matrix{Float64}(undef, n + k, 0)
 
-    shifted_m_indices = Int[]
-
-    projection_to_A = Dict{Int, Int}()
-
-    # build cayley configuration
-    end_index = 0
-    m_shift_i = Int[]
     for i in 1:k
         apd_modP = [j == i ? one(F) : zero(F) for j in 1:k]
         apd_Fl = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
-        add_indices = cayley_indices(m, i)
-        for (l, j) in enumerate(add_indices)
-            if j in m.inds[i]
-                push!(m_shift_i, l + end_index)
-            end
-            projection_to_A[l + end_index] = j
+        for j in m.inds[i]
             caley_config_modP = hcat(caley_config_modP,
                                      vcat(M.A_modP[:, j], apd_modP))
             caley_config_Fl = hcat(caley_config_Fl,
                                    vcat(M.A_Fl[:, j], apd_Fl))
         end
-        end_index += length(add_indices)
-        append!(shifted_m_indices, m_shift_i)
-        empty!(m_shift_i)
     end
 
-    # build circuits
-    act_index = 1
-    shifted_m_index = 1
-    for i in 1:size(caley_config_modP, 2)
-        if shifted_m_index <= length(shifted_m_indices) && i == shifted_m_indices[shifted_m_index]
-            shifted_m_index += 1
-            continue
+    osc_cc_modP = matrix(F, caley_config_modP)
+    caley_config_Fl = factorize(caley_config_Fl)
+
+    for i in 1:k
+        apd_modP = [j == i ? one(F) : zero(F) for j in 1:k]
+        apd_Fl = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
+        all_m_inds = vcat(m.inds...)
+        for j in cayley_indices(m, i)
+            rs_modP = vcat(M.A_modP[:, j], apd_modP)
+            rs_Fl = vcat(M.A_Fl[:, j], apd_Fl)
+            sol_modP = solve(osc_cc_modP, rs_modP, side = :right)
+            sol_Fl = caley_config_Fl \ rs_Fl
+            c_cfs_modP = [zero(F) for _ in 1:size(M.A_modP, 2)]
+            c_cfs_Fl = zeros(Float64, size(M.A_modP, 2))
+            for (l, ind) in enumerate(all_m_inds)
+                c_cfs_modP[ind] = sol_modP[l]
+                c_cfs_Fl[ind] = sol_Fl[l]
+            end
+            c_cfs_modP[j] -= F(1)
+            c_cfs_Fl[j] -= 1.0
+            @assert iszero(M.A_modP * c_cfs_modP)
+            c = Hyperplane(c_cfs_modP, c_cfs_Fl)
+            sgn = signbit(first(partial_sum(m.inds[i], c)))
+            add_to_dict!(walls, c, (m, i, sgn))
         end
-        if iszero(caley_config_modP[n + act_index, i])
-            act_index += 1
-        end
-        circuit_col_indices = vcat(shifted_m_indices[1:shifted_m_index-1], [i],
-                                   shifted_m_indices[shifted_m_index:end])
-        K_modP = kernel(matrix(F, caley_config_modP[:, circuit_col_indices]),
-                        side = :right)
-        K_Fl = nullspace(caley_config_Fl[:, circuit_col_indices])
-        @assert size(K_modP, 2) == size(K_Fl, 2) == 1 "unexpected dimension in circuit computation"
-        K_modP *= (-K_modP[shifted_m_index, 1]^(-1))
-        K_Fl *= (-K_Fl[shifted_m_index, 1]^(-1))
-        c_cfs_modP = [zero(F) for _ in 1:size(M.A_modP, 2)]
-        c_cfs_Fl = zeros(Float64, size(M.A_modP, 2))
-        for (j, ind) in enumerate(circuit_col_indices)
-            c_cfs_modP[projection_to_A[ind]] += K_modP[j, 1]
-            c_cfs_Fl[projection_to_A[ind]] += K_Fl[j, 1]
-        end
-        c = Hyperplane(c_cfs_modP, c_cfs_Fl)
-        sgn = signbit(first(partial_sum(m.inds[act_index], c)))
-        add_to_dict!(walls, c, (m, act_index, sgn))
     end
 end
 

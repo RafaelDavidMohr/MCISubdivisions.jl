@@ -102,9 +102,9 @@ end
 
 function cayley_indices(m::MixedCell, j::Int)
     if j == length(m)
-        return m.loc_inds[j]
+        return sort(setdiff(m.loc_inds[j], m.inds[j]))
     end
-    res = setdiff(m.loc_inds[j], m.loc_inds[j+1])
+    res = setdiff(m.loc_inds[j], vcat(m.inds[j], m.loc_inds[j+1]))
     return sort(vcat(res, [first(m.inds[j+1])]))
 end
 
