@@ -36,6 +36,7 @@ function MixedCell(inds::Vector{Vector{Int}}, M::MCI)
     return MixedCell(inds, loc_inds)
 end
 
+# assume that V is echelonized
 function find_nonzero_indices(V::Matrix{C}, inds::Vector{Int}, test_inds::Vector{Int},
                               V_rank::Int) where C
 

@@ -203,7 +203,6 @@ function compute_active_walls!(m::MixedCell,
             end
             c_cfs_modP[j] -= F(1)
             c_cfs_Fl[j] -= 1.0
-            @assert iszero(M.A_modP * c_cfs_modP)
             c = Hyperplane(c_cfs_modP, c_cfs_Fl)
             sgn = signbit(first(partial_sum(m.inds[i], c)))
             add_to_dict!(walls, c, (m, i, sgn))

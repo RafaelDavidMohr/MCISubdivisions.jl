@@ -131,7 +131,8 @@ struct MCI
     function MCI(V::Matrix{FqFieldElem}, A_modP::Matrix{FqFieldElem}, A_Fl::Matrix{Float64})
         @assert size(V, 2) == size(A_modP, 2) "number of coefficients and monomials does not match."
         F = parent(first(V))
-        return new(V, A_modP, A_Fl)
+        R = echelon_form(matrix(F, V))
+        return new(Matrix(R), A_modP, A_Fl)
     end
 end
 
