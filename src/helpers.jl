@@ -1,30 +1,9 @@
-# --- circuit computation --- #
-
-function exchange_circuits(Mloc::RelativeMCI, known_circuit_inds::Vector{Int})
-    F = prime_field_V(Mloc)
-    inds = setdiff(1:size(Mloc.V_rel, 2), known_circuit_inds)
-    if rank(matrix(F, Mloc.V_rel[:, inds])) < length(inds)
-        return [inds]
-    end
-    result = Set{Vector{Int}}()
-    for i in known_circuit_inds
-        mat = matrix(F, Mloc.V_rel[:, 1:end .!= i])
-        K = kernel(mat, side = :right)
-        @assert size(K, 2) == 1
-        new_c = Int[]
-        for j in 1:size(K, 1)
-            if !iszero(K[j, 1])
-                j >= i ? push!(new_c, j + 1) : push!(new_c, j)
-            end
-        end
-        push!(result, new_c)
-    end
-    return [c for c in collect(result)]
-end
-
 # --- mixed cells --- #
 
 function MixedCell(inds::Vector{Vector{Int}}, M::MCI)
+    for ind in inds
+        sort!(ind)
+    end
     loc_inds = Vector{Int}[]
     for i in 1:length(inds)
         rem_inds = setdiff(indices(M), vcat(inds[1:i-1]...))
@@ -126,7 +105,7 @@ end
 function compute_basis(V::Matrix{C}) where C
     F = parent(first(V))
     RV = Matrix(echelon_form(matrix(F, V)))
-    pivots_cols = findall(!iszero, diag(V))
+    pivots_cols = findall(!iszero, diag(RV))
     return pivots_cols
 end
 
@@ -198,10 +177,9 @@ function linear_span(A::Matrix{C}, inds::Vector{Int}) where C
     return L
 end
 
-function is_affine_independent(A::Matrix{C}, inds::Vector{Int}) where C
-    F = parent(first(A))
-    L = linear_span(A, inds)
-    return rank(matrix(F, L)) == length(inds) - 1
+function is_affine_independent(A::Matrix{Int}, inds::Vector{Vector{Int}})
+    mat = hcat([linear_span(A, S) for S in inds]...)
+    return !iszero(round(det(mat))) 
 end
 
 function normal_space(A::Matrix{C}, m::Vector{Vector{Int}}) where C
@@ -235,12 +213,12 @@ function nz_inds(c::Hyperplane)
 end
 
 function partial_sum(inds::Vector{Int}, c::Hyperplane)
-    return sum(c.cfs_fl[inds]), sum(c.cfs_P[inds])
+    return sum(c.cfs[inds])
 end
 
 function partial_sum_sign(inds::Vector{Int}, c::Hyperplane, sgn::Bool)
-    res, resP = partial_sum(inds, c)
-    return resP != 0 && (sgn ? res > 0 : res < 0) # TODO: check if 0 is allowed here
+    res = partial_sum(inds, c)
+    return signbit(res)
 end
 
 function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)

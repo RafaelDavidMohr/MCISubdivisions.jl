@@ -124,16 +124,16 @@ function mixed_cell_flip(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, sg
     is_exchange && @assert isone(length(new_inds))
 
     Ss_new = Vector{Int}[]
-    for i in m.inds[act_index]
-        signbit(c.cfs[i]) != sgn && continue
-        candidate_indices = vcat(m.inds[act_index][1:i-1], m.inds[act_index[i+1:end]],
+    for (k, i) in enumerate(m.inds[act_index])
+        (iszero(c.cfs[i]) || signbit(c.cfs[i]) != sgn) && continue
+        candidate_indices = vcat(m.inds[act_index][1:k-1], m.inds[act_index][k+1:end],
                                  new_inds)
         V_trunc_inds = vcat(candidate_indices, m.inds[1:act_index-1]...)
         V_trunc = M.V[:, V_trunc_inds]
-        cl = collect(1:length(candidate_indices))
+        cl = length(candidate_indices)
         K_proj = project_kernel(V_trunc, collect(1:cl))
         @assert isone(size(K_proj, 2))
-        S_new = candidate_indices[findall(j -> !iszero(K_proj[:, j]), 1:cl)]
+        S_new = candidate_indices[findall(j -> !iszero(K_proj[j, :]), 1:cl)]
         push!(Ss_new, S_new)
     end
 
@@ -142,13 +142,14 @@ function mixed_cell_flip(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, sg
     for S_new in Ss_new
         S_new_next = sort(setdiff(inds, S_new))
         next_ind = is_exchange ? act_index + 1 : act_index + 2
-        if length(S_new_next) > 1
-            new_ms_inds = [m.inds[1:act_index-1]..., S_new, S_new_next,
-                           m.inds[next_ind:end]...]
-            push!(new_mixed_cells, MixedCell(new_ms_inds, M))
+        new_ms_inds = if length(S_new_next) > 1
+            [m.inds[1:act_index-1]..., S_new, S_new_next,
+             m.inds[next_ind:end]...]
         else
-            new_ms_inds = [m.inds[1:act_index-1]..., S_new,
-                           m.inds[next_ind:end]...]
+            [m.inds[1:act_index-1]..., S_new,
+             m.inds[next_ind:end]...]
+        end
+        if is_affine_independent(M.A, new_ms_inds)
             push!(new_mixed_cells, MixedCell(new_ms_inds, M))
         end
     end
@@ -162,7 +163,6 @@ function compute_active_walls!(m::MixedCell,
 
     k = length(m)
     n = ambient_dim(M)
-    F = prime_field_A(M)
 
     cayley_config = Matrix{Float64}(undef, n + k, 0)
 
@@ -170,7 +170,7 @@ function compute_active_walls!(m::MixedCell,
         apd = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
         for j in m.inds[i]
             cayley_config = hcat(cayley_config,
-                                 vcat(M.A_Fl[:, j], apd))
+                                 vcat(M.A[:, j], apd))
         end
     end
 
@@ -187,43 +187,12 @@ function compute_active_walls!(m::MixedCell,
             for (l, ind) in enumerate(all_m_inds)
                 c_cfs[ind] = Int(round(d * sol[l]))
             end
-            c_cfs[j] -= 1
+            c_cfs[j] -= d
             c = Hyperplane(c_cfs)
             sgn = signbit(first(partial_sum(m.inds[i], c)))
             add_to_dict!(walls, c, (m, i, sgn))
         end
     end
-end
-
-# --- MCI functions --- #
-
-function localize(M::RelativeMCI, S::Vector{Int}, rem_inds::Vector{Int})
-    S_rel = M.base_to_rel[S]
-    rem_inds_rel = M.base_to_rel[rem_inds]
-    A = M.A_rel
-    V = M.V_rel
-    L = linear_span(A, S_rel)
-    A_new = project_along_linear_space(L, A[:, rem_inds_rel], length(S_rel) - 1)
-    V_new = project_along_linear_space(V[:, S_rel], V[:, rem_inds_rel], length(S_rel) - 1)
-    rel_to_base = compose_as_maps(M.rel_to_base, rem_inds_rel)
-    return RelativeMCI(M.base, A_new, V_new, rel_to_base)
-end
-
-function localize(M::RelativeMCI, m::MixedCell, i::Int)
-    M_curr = M
-    for j in 1:i
-        M_curr = localize(M_curr, m.inds[j], m.loc_inds[j])
-    end
-    return M_curr
-end
-
-function localize(M::MCI, m::MixedCell, i::Int)
-    return localize(RelativeMCI(M), m, i)
-end
-
-function restrict(M::RelativeMCI, S::Vector{Int})
-    S_rel = M.base_to_rel[S]
-    return RelativeMCI(M.base, M.A_rel[:, S_rel], M.V_rel[:, S_rel], M.rel_to_base[S_rel])
 end
 
 # --- Mixed cell checking/computation for testing --- #
@@ -295,36 +264,36 @@ function find_dual_tropical_root(M::MCI, d::Vector{QQFieldElem},
 end
 
 # checks if m ∪ {S} is a partial mixed cell
-function is_partial_mixed_cell(M::MCI, m::MixedCell)
+# function is_partial_mixed_cell(M::MCI, m::MixedCell)
 
-    M_curr = RelativeMCI(M)
+#     M_curr = RelativeMCI(M)
 
-    for j in 1:length(m.inds)
-        !is_partial_mixed_cell(M_curr, m.inds[j]) && return false
-        M_curr = localize(M_curr, m.inds[j], m.loc_inds[j])
-    end
+#     for j in 1:length(m.inds)
+#         !is_partial_mixed_cell(M_curr, m.inds[j]) && return false
+#         M_curr = localize(M_curr, m.inds[j], m.loc_inds[j])
+#     end
 
-    return true
-end
+#     return true
+# end
 
-function is_partial_mixed_cell(M::RelativeMCI,
-                               S::Vector{Int})
+# function is_partial_mixed_cell(M::RelativeMCI,
+#                                S::Vector{Int})
 
-    S_rel = M.base_to_rel[S]
-    A = M.A_rel
-    V = M.V_rel
-    if is_affine_independent(A, S_rel)
-        F = parent(first(V))
-        V_S = V[:, S_rel]
-        R_S = Oscar.echelon_form(matrix(F, V_S), reduced = false)
-        any(i -> iszero(R_S[i, i]), 1:(length(S) - 1)) && return false
-        if length(S) <= size(V, 1)
-            !iszero(R_S[length(S), length(S)]) && return false
-        end
-        return true
-    end
-    return false
-end
+#     S_rel = M.base_to_rel[S]
+#     A = M.A_rel
+#     V = M.V_rel
+#     if is_affine_independent(A, S_rel)
+#         F = parent(first(V))
+#         V_S = V[:, S_rel]
+#         R_S = Oscar.echelon_form(matrix(F, V_S), reduced = false)
+#         any(i -> iszero(R_S[i, i]), 1:(length(S) - 1)) && return false
+#         if length(S) <= size(V, 1)
+#             !iszero(R_S[length(S), length(S)]) && return false
+#         end
+#         return true
+#     end
+#     return false
+# end
 
 function is_dual_tropical_root(wd::WalkData, m::MixedCell, d::Vector{Float64})
 

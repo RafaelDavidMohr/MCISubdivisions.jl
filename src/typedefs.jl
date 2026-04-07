@@ -61,7 +61,7 @@ function Base.:(-)(a::DualNumber, b::DualNumber)
 end
 
 function Base.:(*)(a::DualNumber, b::DualNumber)
-    return DualNumber(a.r*b.r, a.r_P*b.r_P, a.r*b.eps + a.eps*b.r)
+    return DualNumber(a.r*b.r, a.r*b.eps + a.eps*b.r)
 end
 
 function Base.inv(a::DualNumber)
@@ -90,7 +90,7 @@ struct Hyperplane
         nzinds = findall(!iszero, cfs)
         ni = first(nzinds)
         sb = signbit(cfs[ni])
-        sb ? return new(-cfs, nzinds) : return(cfs, nzinds)
+        return sb ? new(-cfs, nzinds) : new(cfs, nzinds)
    end
 end
 
@@ -113,33 +113,11 @@ struct MCI
     A::Matrix{Int}
 
     function MCI(V::Matrix{FqFieldElem}, A::Matrix{Int})
-        @assert size(V, 2) == size(A_modP, 2) "number of coefficients and monomials does not match."
+        @assert size(V, 2) == size(A, 2) "number of coefficients and monomials does not match."
         F = parent(first(V))
         R = echelon_form(matrix(F, V))
         return new(Matrix(R), A)
     end
-end
-
-struct RelativeMCI
-    base::MCI
-    V_rel::Matrix{FqFieldElem}
-    base_to_rel::Vector{Int}
-    rel_to_base::Vector{Int}
-
-    function RelativeMCI(base::MCI, V_rel::Matrix{FqFieldElem},
-                         rel_to_base::Vector{Int})
-
-        base_to_rel = similar(rel_to_base)
-        base_to_rel = zeros(Int, size(base.A, 2))
-        for (i, j) in enumerate(rel_to_base)
-            base_to_rel[j] = i
-        end
-        return new(base, V_rel, base_to_rel, rel_to_base)
-    end
-end
-
-function RelativeMCI(M::MCI)
-    return RelativeMCI(M, M.V, indices(M))
 end
 
 function MCI(V::Matrix{C}, A::Matrix{Int64}) where C
@@ -150,18 +128,9 @@ function MCI(V::Matrix{C}, A::Matrix{Int64}) where C
     return MCI(Matrix(rand_mix * matrix(F, Vp)), A)
 end
 
-function circuits(M::RelativeMCI)
-    F = prime_field_V(M)
-    matr = matroid_from_matrix_columns(matrix(F, M.V_rel))
-    return Oscar.circuits(matr)
-end
-
 indices(M::MCI) = collect(1:size(M.A, 2))
-indices(M::RelativeMCI) = collect(1:size(M.V_rel, 2))
 
-prime_field_A(M::MCI) = parent(first(M.A_modP))
 prime_field_V(M::MCI) = parent(first(M.V))
-prime_field_V(M::RelativeMCI) = parent(first(M.V_rel))
 
 function ambient_dim(M::MCI)
     return size(M.A, 1)
