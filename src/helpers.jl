@@ -102,72 +102,6 @@ function reduce_mod_rand_prime(V::Matrix{Int})
     return [F(x) for x in V]
 end
 
-function compute_basis(V::Matrix{C}) where C
-    F = parent(first(V))
-    RV = Matrix(echelon_form(matrix(F, V)))
-    pivots_cols = findall(!iszero, diag(RV))
-    return pivots_cols
-end
-
-function project_kernel(V::Matrix{C}, inds::Vector{Int}) where C
-    F = parent(first(V))
-    K = Matrix(kernel(matrix(F, V), side = :right))
-    basis_inds = compute_basis(K[inds, :])
-    return K[:, basis_inds]
-end 
-
-function project_along_linear_space(V::Matrix{C}, W::Matrix{C}, V_rank::Int) where C
-
-    isempty(V) && return W
-
-    F = parent(first(V))
-    RV = Matrix(echelon_form(matrix(F, transpose(V))))
-
-    pivot_cols = falses(size(RV, 2))
-    pivot_rows = zeros(Int, size(RV, 2))
-    @inbounds for i in 1:size(RV, 1)
-        for j in 1:size(RV, 2)
-            if !iszero(RV[i, j])
-                pivot_cols[j] = true
-                pivot_rows[j] = i
-                break
-            end
-        end
-    end
-
-    non_pivot_count = size(RV, 2) - count(pivot_cols)
-    non_pivot_inds = Vector{Int}(undef, non_pivot_count)
-    idx = 1
-    @inbounds for j in 1:size(RV, 2)
-        if !pivot_cols[j]
-            non_pivot_inds[idx] = j
-            idx += 1
-        end
-    end
-
-    result = Matrix{C}(undef, size(V, 1) - V_rank, size(W, 2))
-    red = Vector{C}(undef, size(W, 1))
-
-    @inbounds for i in 1:size(W, 2)
-        for j in 1:size(W, 1)
-            red[j] = W[j, i]
-        end
-
-        for j in 1:size(W, 1)
-            if !iszero(red[j]) && pivot_cols[j]
-                pind = pivot_rows[j]
-                for k in j+1:size(W,1)
-                    red[k] = red[k] - red[j] * RV[pind, k]
-                end
-                red[j] = F(0)
-            end
-        end
-        result[:, i] = red[non_pivot_inds]
-    end
-
-    return result
-end
-
 function linear_span(A::Matrix{C}, inds::Vector{Int}) where C
     a0 = A[:, first(inds)]
     L = Matrix{C}(undef, size(A, 1), length(inds) - 1)
@@ -296,16 +230,6 @@ end
 
 # --- other helpers --- #
 
-# TODO probably: sorted merge
-function restrict(inds::Vector{Int}, restr::Vector{Int})
-    res = Int[]
-    for i in inds
-        !(i in restr) && continue
-        push!(res, i)
-    end
-    return res
-end
-
 function forgetful_lift(A_size::Int, forget_inds::Vector{Int})
     d = Vector{Int}(undef, A_size)
     for i in 1:A_size
@@ -363,14 +287,6 @@ function add_to_dict!(d::Dict{T, Set{S}}, k::T, v::S) where {T, S}
     else
         d[k] = Set([v])
     end
-end
-
-function compose_as_maps(m1::Vector{Int}, m2::Vector{Int})
-    result = similar(m2)
-    for (j, i) in enumerate(m2)
-        result[j] = m1[i]
-    end
-    return result
 end
 
 function id_matrix(n)
