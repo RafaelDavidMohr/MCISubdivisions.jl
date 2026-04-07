@@ -65,7 +65,7 @@ function elim_supp_func(A::Matrix{Int}, V::Matrix{C}, w::Vector{Int}) where C
 end
 
 # mixed shadow volume w.r.t. last coordinate
-function mixed_shadow_volume(A::Matrix{Int}, V::Matrix{C}) where C
+function mixed_shadow_volume(A::Matrix{Int}, V::Matrix{C}, cashed_mv::Int, cashed_shft::Int) where C
     A_proj = copy(A)
     A_proj[end, :] = zeros(Int, 1, size(A, 2))
     min_exp = minimum(i -> A[end, i], 1:size(A, 2))
@@ -75,11 +75,15 @@ function mixed_shadow_volume(A::Matrix{Int}, V::Matrix{C}) where C
             return mixed_volume(hcat(A, A_proj), hcat(V, V))
         end
 
+        if min_exp < cashed_shft
+            error("compute new shift")
+        end
+
         A_proj_shft = copy(A)
-        A_proj_shft[end, :] = repeat([min_exp - 1], 1, size(A, 2))
+        A_proj_shft[end, :] = repeat([cashed_shft], 1, size(A, 2))
 
         a = mixed_volume(hcat(A, A_proj_shft), hcat(V, V))
-        b = mixed_volume(hcat(A_proj, A_proj_shft), hcat(V, V))
-        return a - b
+        # b = mixed_volume(hcat(A_proj, A_proj_shft), hcat(V, V))
+        return a - cashed_mv
     end
 end

@@ -32,142 +32,122 @@ end
 # --- Dual Number --- #
 
 struct DualNumber
-    r_fl::Float64
-    r_P::FqFieldElem
-    eps_fl::Float64
-    eps_P::FqFieldElem
+    r::Float64
+    eps::Float64
 end
 
 function Base.show(io::IO, a::DualNumber)
-    print(io, "$(round(a.r_fl, digits = 3)) + ε ⋅ $(round(a.eps_fl, digits = 3))")
+    print(io, "$(round(a.r, digits = 2)) + ε ⋅ $(round(a.eps, digits = 2))")
 end
 
 function Base.iszero(a::DualNumber)
-    return iszero(a.r_P) && iszero(a.eps_P)
+    return iszero(a.r) && iszero(a.eps)
+end
+
+function Base.zero(::Type{DualNumber})
+    return DualNumber(0.0, 0.0)
+end
+
+function Base.one(::Type{DualNumber})
+    return DualNumber(1.0, 0.0)
 end
 
 function Base.:(+)(a::DualNumber, b::DualNumber)
-    return DualNumber(a.r_fl + b.r_fl, a.r_P + b.r_P,
-                      a.eps_fl + b.eps_fl, a.eps_P + b.eps_P)
+    return DualNumber(a.r + b.r, a.eps + b.eps)
 end
 
 function Base.:(-)(a::DualNumber, b::DualNumber)
-    return DualNumber(a.r_fl - b.r_fl, a.r_P - b.r_P,
-                      a.eps_fl - b.eps_fl, a.eps_P - b.eps_P)
+    return DualNumber(a.r - b.r, a.eps - b.eps)
 end
 
 function Base.:(*)(a::DualNumber, b::DualNumber)
-    return DualNumber(a.r_fl*b.r_fl, a.r_P*b.r_P,
-                      a.r_fl*b.eps_fl + a.eps_fl*b.r_fl,
-                      a.r_P*b.eps_P + a.eps_P*b.r_P)
+    return DualNumber(a.r*b.r, a.r_P*b.r_P, a.r*b.eps + a.eps*b.r)
 end
 
 function Base.inv(a::DualNumber)
-    iszero(a.r_P) && error("not invertible")
-    return DualNumber(a.r_fl^(-1), a.r_P^(-1),
-                      -(a.eps_fl*a.r_fl^(-2)), -(a.eps_P*a.r_P^(-2)))
-end
-
-function dual_zero(F::FqField)
-    return DualNumber(0.0, F(0), 0.0, F(0))
-end
-
-function dual_one(F::FqField)
-    return DualNumber(1.0, F(1), 0.0, F(0))
+    iszero(a.r) && error("not invertible")
+    return DualNumber(a.r^(-1), -(a.eps*a.r^(-2)))
 end
 
 function lt_dual(a::DualNumber, b::DualNumber)
 
-    if a.r_P != b.r_P
-        return a.r_fl < b.r_fl
-    elseif a.eps_P != b.eps_P
-        return a.eps_fl < b.eps_fl
+    if a.r != b.r
+        return a.r < b.r
+    elseif a.eps != b.eps
+        return a.eps < b.eps
     else
         return false
     end
 end
 
-function prime_field(a::DualNumber)
-    return parent(a.r_P)
-end
-
 # --- Circuit --- #
 
 struct Hyperplane
-    cfs_P::Vector{FqFieldElem}
-    cfs_fl::Vector{Float64}
+    cfs::Vector{Int}
     nzinds::Vector{Int}
 
-    function Hyperplane(cfs_P::Vector{FqFieldElem}, cfs_fl::Vector{Float64})
-        nzinds = findall(!iszero, cfs_P)
+    function Hyperplane(cfs::Vector{Int})
+        nzinds = findall(!iszero, cfs)
         ni = first(nzinds)
-        return new(cfs_P[ni]^(-1) .* cfs_P, cfs_fl[ni]^(-1) .* cfs_fl, nzinds)
+        sb = signbit(cfs[ni])
+        sb ? return new(-cfs, nzinds) : return(cfs, nzinds)
    end
 end
 
 function Base.length(c::Hyperplane)
-    return length(c.cfs_P)
+    return length(c.cfs)
 end
 
 function Base.:(==)(c1::Hyperplane, c2::Hyperplane)
-    return c1.cfs_P == c2.cfs_P
+    return c1.cfs == c2.cfs
 end
 
 function Base.hash(c::Hyperplane, h::UInt)
-    return hash(c.cfs_P, h)
-end
-
-function prime_field(c::Hyperplane)
-    return parent(first(c.cfs_P))
+    return hash(c.cfs, h)
 end
 
 # --- MCI --- #
 
 struct MCI
     V::Matrix{FqFieldElem} # stored over random finite field to speed up computations
-    A_modP::Matrix{FqFieldElem}
-    A_Fl::Matrix{Float64}
+    A::Matrix{Int}
 
-    function MCI(V::Matrix{FqFieldElem}, A_modP::Matrix{FqFieldElem}, A_Fl::Matrix{Float64})
+    function MCI(V::Matrix{FqFieldElem}, A::Matrix{Int})
         @assert size(V, 2) == size(A_modP, 2) "number of coefficients and monomials does not match."
         F = parent(first(V))
         R = echelon_form(matrix(F, V))
-        return new(Matrix(R), A_modP, A_Fl)
+        return new(Matrix(R), A)
     end
 end
 
 struct RelativeMCI
     base::MCI
-    A_rel::Matrix{FqFieldElem}
     V_rel::Matrix{FqFieldElem}
     base_to_rel::Vector{Int}
     rel_to_base::Vector{Int}
 
-    function RelativeMCI(base::MCI, A_rel::Matrix{FqFieldElem},
-                         V_rel::Matrix{FqFieldElem},
+    function RelativeMCI(base::MCI, V_rel::Matrix{FqFieldElem},
                          rel_to_base::Vector{Int})
 
         base_to_rel = similar(rel_to_base)
-        base_to_rel = zeros(Int, size(base.A_modP, 2))
+        base_to_rel = zeros(Int, size(base.A, 2))
         for (i, j) in enumerate(rel_to_base)
             base_to_rel[j] = i
         end
-        return new(base, A_rel, V_rel, base_to_rel, rel_to_base)
+        return new(base, V_rel, base_to_rel, rel_to_base)
     end
 end
 
 function RelativeMCI(M::MCI)
-    return RelativeMCI(M, M.A_modP, M.V, indices(M))
+    return RelativeMCI(M, M.V, indices(M))
 end
 
 function MCI(V::Matrix{C}, A::Matrix{Int64}) where C
     Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
     F = parent(first(Vp))
     rand_mix = matrix(F, (F).(rand(1:characteristic(F)-1, size(V, 1), size(V, 1))))
-    A_modP = reduce_mod_rand_prime(A)
-    A_Fl = (Float64).(A)
     
-    return MCI(Matrix(rand_mix * matrix(F, Vp)), A_modP, A_Fl)
+    return MCI(Matrix(rand_mix * matrix(F, Vp)), A)
 end
 
 function circuits(M::RelativeMCI)
@@ -176,15 +156,15 @@ function circuits(M::RelativeMCI)
     return Oscar.circuits(matr)
 end
 
-indices(M::MCI) = collect(1:size(M.A_modP, 2))
-indices(M::RelativeMCI) = collect(1:size(M.A_rel, 2))
+indices(M::MCI) = collect(1:size(M.A, 2))
+indices(M::RelativeMCI) = collect(1:size(M.V_rel, 2))
 
 prime_field_A(M::MCI) = parent(first(M.A_modP))
 prime_field_V(M::MCI) = parent(first(M.V))
 prime_field_V(M::RelativeMCI) = parent(first(M.V_rel))
 
 function ambient_dim(M::MCI)
-    return size(M.A_modP, 1)
+    return size(M.A, 1)
 end
 
 # --- Lift --- #

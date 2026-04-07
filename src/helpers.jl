@@ -123,6 +123,20 @@ function reduce_mod_rand_prime(V::Matrix{Int})
     return [F(x) for x in V]
 end
 
+function compute_basis(V::Matrix{C}) where C
+    F = parent(first(V))
+    RV = Matrix(echelon_form(matrix(F, V)))
+    pivots_cols = findall(!iszero, diag(V))
+    return pivots_cols
+end
+
+function project_kernel(V::Matrix{C}, inds::Vector{Int}) where C
+    F = parent(first(V))
+    K = Matrix(kernel(matrix(F, V), side = :right))
+    basis_inds = compute_basis(K[inds, :])
+    return K[:, basis_inds]
+end 
+
 function project_along_linear_space(V::Matrix{C}, W::Matrix{C}, V_rank::Int) where C
 
     isempty(V) && return W
@@ -230,26 +244,23 @@ function partial_sum_sign(inds::Vector{Int}, c::Hyperplane, sgn::Bool)
 end
 
 function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
-    F = parent(first(c.cfs_P))
-    res_P = F(0)
-    res_fl = 0.0
+    res = 0
     for i in nz_inds(c)
-        res_P += v[i] * c.cfs_P[i]
-        res_fl += v[i] * c.cfs_fl[i]
+        res += v[i] * c.cfs[i]
     end
-    return res_fl, res_P
+    return res
 end
 
 function LinearAlgebra.dot(v::Vector{Float64}, c::Hyperplane)
     res_fl = 0.0
     for i in nz_inds(c)
-        res_fl += v[i] * c.cfs_fl[i]
+        res_fl += v[i] * c.cfs[i]
     end
     return res_fl
 end
 
 function LinearAlgebra.dot(l::DualVector, c::Hyperplane)
-    return DualNumber(dot(l.r, c)..., dot(l.eps, c)...)
+    return DualNumber(round(dot(l.r, c)), round(dot(l.eps, c)))
 end
 
 # --- homotopy paths --- #
@@ -259,11 +270,8 @@ function first_intersection!(l0::DualVector, l1::DualVector,
                              last_h::Union{Nothing, Hyperplane},
                              wd::WalkData)
 
-    F = prime_field_A(wd.M)
-    one_dual = dual_one(F)
-
     last_t = if isnothing(last_h)
-        dual_zero(F)
+        zero(DualNumber)
     else
         crossing_val(l0, l1, last_h)
     end
@@ -280,7 +288,7 @@ function first_intersection!(l0::DualVector, l1::DualVector,
 
         t_c = crossing_val(l0, l1, c)
         # check if crossing between last t and 1
-        if lt_dual(t_c, last_t) || lt_dual(one_dual, t_c)
+        if lt_dual(t_c, last_t) || lt_dual(one(DualNumber), t_c)
             push!(wd.nocross, c)
             continue
         end
@@ -299,35 +307,16 @@ function crossing_val(l0::DualVector, l1::DualVector, c::Hyperplane)
     l1d = dot(l1, c)
     denom = l0d - l1d
 
-    F = prime_field(l0d)
-    try
-        if iszero(l0d.r_P) && iszero(l1d.r_P)
-            return DualNumber(l0d.eps_fl * denom.eps_fl^(-1),
-                              l0d.eps_P * denom.eps_P^(-1), 0.0, F(0))
-        elseif iszero(denom.r_P)
-            return DualNumber(2.0, F(2), 0.0, F(0))
-        else
-            return l0d * inv(denom)
-        end
-    catch e
-        println(l0)
-        println(l1)
-        println(c.cfs_P)
-        println(denom)
-        println(characteristic(F))
-        rethrow(e)
+    if iszero(l0d.r) && iszero(l1d.r)
+        return DualNumber(l0d.eps * denom.eps^(-1), 0.0)
+    elseif iszero(denom.r)
+        return DualNumber(2.0, 0.0)
+    else
+        return l0d * inv(denom)
     end
 end
 
 # --- other helpers --- #
-
-function to_mat_dual(a::Tuple{T, T}) where T
-    return [a[1] a[2]; zero(a[1]) a[1]]
-end
-
-function to_dual_mat(a::Matrix{T}) where T
-    return a[1, 1], a[1, 2]
-end
 
 # TODO probably: sorted merge
 function restrict(inds::Vector{Int}, restr::Vector{Int})

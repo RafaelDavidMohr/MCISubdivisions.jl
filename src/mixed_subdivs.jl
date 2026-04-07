@@ -12,14 +12,14 @@ function walk_homotopy!(w::WalkData, p0::DualVector, p1::DualVector;
         end
         if rr_count(rr_counter) == trr
             @info "target real root count $(rr_counter.target_rr_count) reached"
-            return true, dual_zero(prime_field_A(w.M))
+            return true, zero(DualNumber)
         end
     end
 
     @info "starting homotopy"
     if p0.r == p1.r && p0.eps == p1.eps
         @info "no deformation, nothing to do"
-        return
+        return true, zero(DualNumber)
     end
 
     c_prev = nothing
@@ -27,7 +27,7 @@ function walk_homotopy!(w::WalkData, p0::DualVector, p1::DualVector;
         c_int, t_cross = first_intersection!(p0, p1, keys(w.walls), c_prev, w)
         if isnothing(c_int)
             @info "no intersection left, finished"
-            return false, dual_zero(GF(2))
+            return false, zero(DualNumber)
         end
         @info "intersection found"
         @info "crossing at $(t_cross)"
@@ -39,7 +39,7 @@ function walk_homotopy!(w::WalkData, p0::DualVector, p1::DualVector;
         end
         c_prev = c_int
     end
-    return false, dual_zero(GF(2)) # only for type stability
+    return false, zero(DualNumber)
 end
 
 function deform_subdivision(A::Matrix{Int}, V::Matrix{C},
@@ -117,32 +117,27 @@ end
 
 function mixed_cell_flip(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, sgn::Bool)
 
-    Mloc = localize(M, m, act_index-1)
-
     # indices from which new mixed cell component can come
     # todo: if this doesnt work check if this is correct
     new_inds = setdiff(nz_inds(c), vcat(m.inds...))
     is_exchange = !isempty(new_inds)
-    inds = if is_exchange 
-        sort(union(m.inds[act_index], new_inds))
-    else
-        sort(vcat(m.inds[act_index], m.inds[act_index+1]))
-    end
+    is_exchange && @assert isone(length(new_inds))
 
-    F = prime_field_V(M)
-    Mloc = restrict(Mloc, inds)
     Ss_new = Vector{Int}[]
-
-    crcts = exchange_circuits(Mloc, Mloc.base_to_rel[m.inds[act_index]])
-    for S_new_rel in crcts
-        S_new = Mloc.rel_to_base[S_new_rel]
-        @assert !isone(length(S_new)) "Circuit of length one in localization"
-        sort!(S_new)
-        if partial_sum_sign(S_new, c, sgn) && is_affine_independent(Mloc.A_rel, S_new_rel)
-            push!(Ss_new, S_new)
-        end
+    for i in m.inds[act_index]
+        signbit(c.cfs[i]) != sgn && continue
+        candidate_indices = vcat(m.inds[act_index][1:i-1], m.inds[act_index[i+1:end]],
+                                 new_inds)
+        V_trunc_inds = vcat(candidate_indices, m.inds[1:act_index-1]...)
+        V_trunc = M.V[:, V_trunc_inds]
+        cl = collect(1:length(candidate_indices))
+        K_proj = project_kernel(V_trunc, collect(1:cl))
+        @assert isone(size(K_proj, 2))
+        S_new = candidate_indices[findall(j -> !iszero(K_proj[:, j]), 1:cl)]
+        push!(Ss_new, S_new)
     end
 
+    inds = is_exchange ? vcat(m.inds[act_index], sort(new_inds)) : vcat(m.inds[act_index], m.inds[act_index+1])
     new_mixed_cells = MixedCell[]
     for S_new in Ss_new
         S_new_next = sort(setdiff(inds, S_new))
@@ -169,57 +164,35 @@ function compute_active_walls!(m::MixedCell,
     n = ambient_dim(M)
     F = prime_field_A(M)
 
-    caley_config_modP = Matrix{FqFieldElem}(undef, n + k, 0)
-    caley_config_Fl = Matrix{Float64}(undef, n + k, 0)
+    cayley_config = Matrix{Float64}(undef, n + k, 0)
 
     for i in 1:k
-        apd_modP = [j == i ? one(F) : zero(F) for j in 1:k]
-        apd_Fl = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
+        apd = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
         for j in m.inds[i]
-            caley_config_modP = hcat(caley_config_modP,
-                                     vcat(M.A_modP[:, j], apd_modP))
-            caley_config_Fl = hcat(caley_config_Fl,
-                                   vcat(M.A_Fl[:, j], apd_Fl))
+            cayley_config = hcat(cayley_config,
+                                 vcat(M.A_Fl[:, j], apd))
         end
     end
 
-    osc_cc_modP = matrix(F, caley_config_modP)
-    caley_config_Fl = factorize(caley_config_Fl)
+    cayley_config = factorize(cayley_config)
+    d = Int(round(det(cayley_config)))
+    all_m_inds = vcat(m.inds...)
 
     for i in 1:k
-        apd_modP = [j == i ? one(F) : zero(F) for j in 1:k]
-        apd_Fl = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
-        all_m_inds = vcat(m.inds...)
+        apd = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
         for j in cayley_indices(m, i)
-            rs_modP = vcat(M.A_modP[:, j], apd_modP)
-            rs_Fl = vcat(M.A_Fl[:, j], apd_Fl)
-            sol_modP = solve(osc_cc_modP, rs_modP, side = :right)
-            sol_Fl = caley_config_Fl \ rs_Fl
-            c_cfs_modP = [zero(F) for _ in 1:size(M.A_modP, 2)]
-            c_cfs_Fl = zeros(Float64, size(M.A_modP, 2))
+            rs = vcat(M.A[:, j], apd)
+            sol = cayley_config \ rs
+            c_cfs = zeros(Int, size(M.A, 2))
             for (l, ind) in enumerate(all_m_inds)
-                c_cfs_modP[ind] = sol_modP[l]
-                c_cfs_Fl[ind] = sol_Fl[l]
+                c_cfs[ind] = Int(round(d * sol[l]))
             end
-            c_cfs_modP[j] -= F(1)
-            c_cfs_Fl[j] -= 1.0
-            c = Hyperplane(c_cfs_modP, c_cfs_Fl)
+            c_cfs[j] -= 1
+            c = Hyperplane(c_cfs)
             sgn = signbit(first(partial_sum(m.inds[i], c)))
             add_to_dict!(walls, c, (m, i, sgn))
         end
     end
-end
-
-function secondary_cone(A::Matrix{Int}, V::Matrix{QQFieldElem}, ms::Vector{MixedCell})
-    ineqs = Matrix{QQFieldElem}(undef, 0, size(A, 2))
-    M = MCI(V, A)
-    wd = WalkData(M, ms)
-    for c in keys(wd.walls)
-        _, _, sgn = first(wd.walls[c])
-        cfs = (x -> QQ(rationalize(x, tol=0.1))).(c.cfs_fl) # very dodgy
-        ineqs = sgn ? vcat(ineqs, permutedims(cfs)) : vcat(ineqs, -permutedims(cfs))
-    end
-    return ineqs, cone_from_inequalities(ineqs)
 end
 
 # --- MCI functions --- #
