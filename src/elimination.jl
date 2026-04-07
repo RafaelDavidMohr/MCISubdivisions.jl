@@ -64,6 +64,27 @@ function elim_supp_func(A::Matrix{Int}, V::Matrix{C}, w::Vector{Int}) where C
     return mixed_shadow_volume(Aw, V)
 end
 
+function symbolic_volume(A_mod::Matrix{Int}, m::Vector{Vector{Int}}, n::Int, w::Vector{Int})
+    mat = hcat([linear_span(A_mod, S) for S in m]...)
+    res = zeros(Int, size(A_mod, 1) - n)
+    for i in 1:size(mat, 2)
+        sgn = (-1)^(n+1+i)
+        res += Int(round(det(mat[1:n, 1:end .!= i])))*sgn*vec(mat[n+1:end, i])
+    end
+    return dot(w, res) > 0 ? res : -res
+end
+
+function elim_supp_func(E::ElimData)
+    n = size(E.V, 1) - 1
+    k = size(E.A, 1) - n - 1
+    As = size(E.A, 2)
+    A_ext = vcat(E.A, zeros(Int, 1, As))
+    A_ext_2 = vcat(E.A[1:n, :], zeros(Int, k+1, As), repeat([E.shift], 1, As))
+    A_mod = hcat(A_ext, A_ext_2)
+    w = vcat(E.current_covec, [1])
+    return sum([symbolic_volume(A_mod, m, n, w) for m in E.current_ms])
+end
+
 # mixed shadow volume w.r.t. last coordinate
 function mixed_shadow_volume(A::Matrix{Int}, V::Matrix{C}, cashed_mv::Int, cashed_shft::Int) where C
     A_proj = copy(A)

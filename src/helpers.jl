@@ -30,7 +30,12 @@ function find_nonzero_indices(V::Matrix{C}, inds::Vector{Int}, test_inds::Vector
 end
 
 function vol(m::MixedCell, A::Matrix{Int})
-    mat = hcat([linear_span(A, S) for S in m.inds]...)
+    return vol(m.inds, A)
+end
+
+function vol(m::Vector{Vector{Int}}, A::Matrix{Int})
+    mat = hcat([linear_span(A, S) for S in m]...)
+    display(mat)
     lu = LinearAlgebra.lu(mat)
     return round(Int, abs(LinearAlgebra.det(lu)))
 end
