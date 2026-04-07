@@ -242,6 +242,23 @@ function forgetful_lift(A_size::Int, forget_inds::Vector{Int})
     return DualVector(d)
 end
 
+function forgetful_lift(A_size::Int, forget_inds::Vector{Int}, d_eps::Vector{Int})
+    d = Vector{Int}(undef, A_size)
+    d_eps_new = Vector{Int}(undef, A_size)
+    cnt = 1
+    for i in 1:A_size
+        if i in forget_inds
+            d[i] = 0
+            d_eps_new[i] = rand(-10000:10000)
+        else
+            d[i] = 1
+            d_eps_new[i] = d_eps[cnt]
+            cnt += 1
+        end
+    end
+    return DualVector(d, d_eps_new)
+end
+
 function get_support(F::Vector{<:MPolyRingElem})
     exps = unique(vcat([collect(exponents(f)) for f in F]...))
     return hcat(exps...)

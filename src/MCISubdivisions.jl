@@ -34,7 +34,7 @@ end
 
 function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
-    A_ext, wd, p0, p1 = starting_system(A, Vp)
+    wd, p0, p1 = starting_system(A, Vp)
 
     walk_homotopy!(wd, p0, p1)
 

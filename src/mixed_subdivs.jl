@@ -60,39 +60,45 @@ function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem})
     no_multiset = allunique(i -> A[:, i], 1:A_size)
 
     # extended MCI
-    A_ext = copy(A)
-    V_ext = copy(V)
     F = parent(first(V))
-    if no_multiset
+    p_start = rand(-10000:10000, A_size)
+    A_start, V_start, init_mc = if no_multiset
         @info "Choosing polyhedral starting system"
-        A_ext = hcat(A_ext, A)
-        V_ext = hcat(V_ext, rand_arr_ff(F, n, A_size))
+        sd = subdivision_of_points(transpose(A), -p_start)
+        copy(A), rand_arr_ff(F, n, A_size), [[c] for c in maximal_cells(sd)]
     else
         @info "Choosing total degree starting system"
         max_deg = maximum(i -> sum(A[:, i]), 1:A_size)
-        for i in 0:n
-            A_ext = hcat(A_ext, [j == i ? max_deg : 0 for j in 1:n])
-            V_ext = hcat(V_ext, rand_arr_ff(F, n))
-        end
+        [i == j ? max_deg : 0 for i in 1:n, j in 1:n], rand_arr_ff(F, n), [collect(1:A_size)]
     end
+
+    return homotopy(A, V, A_start, V_start, init_mc, p_start)
+end
+
+# works only if conv(A_target) ⊆ conv(A_start)
+function homotopy(A_target::Matrix{Int}, V_target::Matrix{FqFieldElem},
+                  A_start::Matrix{Int}, V_start::Matrix{FqFieldElem},
+                  ms_start::Vector{Vector{Vector{Int}}},
+                  p_start::Vector{Int})
+
+    A_ext = hcat(A_target, A_start)
+    V_ext = hcat(V_target, V_start)
+
     M = MCI(V_ext, A_ext)
+
+    A_size = size(A_target, 2)
 
     # set up path
     A_ext_size = size(A_ext, 2)
-    p0 = forgetful_lift(A_ext_size, collect(1:A_size))
+    p0 = forgetful_lift(A_ext_size, collect(1:A_size), p_start)
     p1 = forgetful_lift(A_ext_size, collect(A_size+1:A_ext_size))
 
     # initial mixed cells
-    init_mc = if no_multiset
-        sd = subdivision_of_points(transpose(A), -p0.eps[A_size+1:end])
-        [MixedCell([c .+ A_size], M) for c in maximal_cells(sd)]
-    else
-        [MixedCell([collect(A_size+1:A_ext_size)], M)]
-    end
+    init_mc = [MixedCell([ci .+ A_size for ci in c], M) for c in ms_start]
 
     wd = WalkData(M, init_mc)
 
-    return A_ext, wd, p0, p1
+    return wd, p0, p1
 end
 
 # --- Functions related to mixed cell cones --- #
