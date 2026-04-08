@@ -35,16 +35,8 @@ end
 
 function vol(m::Vector{Vector{Int}}, A::Matrix{Int})
     mat = hcat([linear_span(A, S) for S in m]...)
-    display(mat)
     lu = LinearAlgebra.lu(mat)
     return round(Int, abs(LinearAlgebra.det(lu)))
-end
-
-# volume of a full-dimensional sum of simplices
-function vol(m::Vector{Vector{Int}}, A::Matrix{Int})
-    mat = hcat([linear_span(A, S) for S in m]...)
-    D = snf(matrix(ZZ, mat))
-    return Int(prod([D[i,i] for i in 1:min(size(D, 1), size(D, 2))]))
 end
 
 function real_root_count(m::MixedCell, A::Matrix{Int}, V::Matrix{QQFieldElem})
@@ -155,7 +147,7 @@ function partial_sum(inds::Vector{Int}, c::Hyperplane)
     return sum(c.cfs[inds])
 end
 
-function partial_sum_sign(inds::Vector{Int}, c::Hyperplane, sgn::Bool)
+function partial_sum_sign(inds::Vector{Int}, c::Hyperplane)
     res = partial_sum(inds, c)
     return signbit(res)
 end

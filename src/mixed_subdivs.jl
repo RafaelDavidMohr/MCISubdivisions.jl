@@ -32,7 +32,16 @@ function walk_homotopy!(w::WalkData, p0::DualVector, p1::DualVector;
         @info "intersection found"
         @info "crossing at $(t_cross)"
         @info "$(length(w.walls[c_int])) mixed cells to flip"
+        ms_before = gather_mixed_cells(w.M, w)
+        vol_before = sum([vol(m, w.M.A) for m in ms_before])
         walk_wall!(w, c_int, rr_counter)
+        ms_after = gather_mixed_cells(w.M, w)
+        vol_after = sum([vol(m, w.M.A) for m in ms_after])
+        if vol_before != vol_after
+            println("volume before : $(vol_before)")
+            println("volume after : $(vol_after)")
+            error("volume changed")
+        end
         if trr >= 0 && rr_count(rr_counter) == trr
             @info "target real root count $(rr_counter.target_rr_count) reached"
             return true, t_cross
@@ -134,11 +143,13 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, s
     else
         new_inds = m.inds[act_index+1]
     end
-
+    println("flipping $(m.inds), volume $(vol(m, M.A)) at index $(act_index), is exchange $(is_exchange)")
+    println("circuit $(c.cfs)")
+    
     Ss_new = Vector{Int}[]
     F = prime_field_V(M)
     for (k, i) in enumerate(m.inds[act_index])
-        (iszero(c.cfs[i]) || signbit(c.cfs[i]) != sgn) && continue
+        # (iszero(c.cfs[i]) || signbit(c.cfs[i]) != sgn) && continue
         candidate_indices = vcat(m.inds[act_index][1:k-1], m.inds[act_index][k+1:end],
                                  new_inds)
         V_trunc_inds = vcat(candidate_indices,
@@ -148,7 +159,9 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, s
         @assert isone(size(K, 2))
         cl = length(candidate_indices)
         S_new = candidate_indices[findall(j -> !iszero(K[j, :]), 1:cl)]
-        push!(Ss_new, S_new)
+        if partial_sum_sign(S_new, c) != sgn
+            push!(Ss_new, S_new)
+        end
     end
 
     inds = vcat(m.inds[act_index], sort(new_inds))
@@ -165,6 +178,7 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, s
         end
         new_ms_inds in new_ms && continue
         if is_affine_independent(M.A, new_ms_inds)
+            println("new cell $(new_ms_inds), volume $(vol(new_ms_inds, M.A))")
             push!(new_ms, new_ms_inds)
         end
     end
@@ -202,7 +216,7 @@ function compute_active_walls!(m::MixedCell,
             end
             c_cfs[j] -= d
             c = Hyperplane(c_cfs)
-            sgn = signbit(first(partial_sum(m.inds[i], c)))
+            sgn = signbit(partial_sum(m.inds[i], c))
             add_to_dict!(walls, c, (m, i, sgn))
         end
     end
