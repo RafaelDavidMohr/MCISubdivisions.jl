@@ -143,7 +143,7 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, s
     else
         new_inds = m.inds[act_index+1]
     end
-    println("flipping $(m.inds), volume $(vol(m, M.A)) at index $(act_index), is exchange $(is_exchange)")
+    println("flipping $(m.inds), volume $(vol(m, M.A)) at index $(act_index), is exchange $(is_exchange), partial sum $(partial_sum(m.inds[act_index], c))")
     println("circuit $(c.cfs)")
     
     Ss_new = Vector{Int}[]
@@ -159,7 +159,9 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, s
         @assert isone(size(K, 2))
         cl = length(candidate_indices)
         S_new = candidate_indices[findall(j -> !iszero(K[j, :]), 1:cl)]
-        if partial_sum_sign(S_new, c) != sgn
+        if partial_sum_sign(S_new, c, sgn)
+            F = prime_field_V(M)
+            println("partial sum $(partial_sum(S_new, c)), rank $(rank(matrix(F, M.V[:, S_new])))")
             push!(Ss_new, S_new)
         end
     end

@@ -147,9 +147,9 @@ function partial_sum(inds::Vector{Int}, c::Hyperplane)
     return sum(c.cfs[inds])
 end
 
-function partial_sum_sign(inds::Vector{Int}, c::Hyperplane)
+function partial_sum_sign(inds::Vector{Int}, c::Hyperplane, sgn::Bool)
     res = partial_sum(inds, c)
-    return signbit(res)
+    return res != 0 && (sgn ? res > 0 : res < 0) # TODO: check if 0 is allowed here
 end
 
 function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
