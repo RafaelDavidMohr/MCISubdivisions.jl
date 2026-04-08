@@ -32,8 +32,8 @@ end
 # --- Dual Number --- #
 
 struct DualNumber
-    r::Float64
-    eps::Float64
+    r::Rational
+    eps::Rational
 end
 
 function Base.show(io::IO, a::DualNumber)

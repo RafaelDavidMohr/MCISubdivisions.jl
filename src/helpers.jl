@@ -160,14 +160,6 @@ function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
     return res
 end
 
-function LinearAlgebra.dot(v::Vector{Float64}, c::Hyperplane)
-    res_fl = 0.0
-    for i in nz_inds(c)
-        res_fl += v[i] * c.cfs[i]
-    end
-    return res_fl
-end
-
 function LinearAlgebra.dot(l::DualVector, c::Hyperplane)
     return DualNumber(round(dot(l.r, c)), round(dot(l.eps, c)))
 end
