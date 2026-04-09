@@ -1,62 +1,77 @@
 # --- Functions for tropical elimination --- #
 
-# function construct_polytope!(E::ElimData)
+function construct_polytope!(E::ElimData)
 
-#     n = size(E.M.V, 1) - 1 # n + 1 input equations
-#     k = size(E.A, 1) - n - 1
-#     amb_dim = k + 1 
-#     @info "computing initial vertices"
+    n = size(E.V, 1) - 1 # n + 1 input equations
+    k = size(E.A, 1) - n - 1
+    amb_dim = k + 1 
+    @info "computing initial vertices"
 
-#     w = rand(-1000:1000, amb_dim)
-#     P = convex_hull([elim_vertex!(E, w)])
-#     dm = 0
-#     while dm < amb_dim 
-#         @info "dimension $(dm)"
-#         af = affine_hull(P)
-#         cfs = rand(-1000:1000, length(af))
-#         w = sum(cfs .* [intify(h.a[1, :]) for h in af])
-#         vert = elim_vertex!(E, w)
-#         if all(h -> vert in h, af) 
-#             vert = elim_vertex!(E, -w)
-#             all(h -> vert in h, af) && break
-#         end
-#         P = convex_hull(P, convex_hull([vert]))
-#         dm = dim(P)
-#     end
-#     @info "done"
+    w = rand(-1000:1000, amb_dim)
+    P = convex_hull([elim_vertex(E)])
+    dm = 0
+    while dm < amb_dim 
+        @info "dimension $(dm)"
+        af = affine_hull_int(P)
+        cfs = rand(-1000:1000, length(af))
+        w = (Int).(sum(cfs .* [(numerator).(h.a[1, :]) for h in af]))
+        vert = elim_vertex!(E, w)
+        if all(h -> vert in h, af)
+            vert = elim_vertex!(E, -w)
+            all(h -> vert in h, af) && break
+        end
+        P = convex_hull(P, convex_hull([vert]))
+        dm = dim(P)
+    end
+    @info "done"
 
-#     facts_confirmed = AffineHalfspace{QQFieldElem}[]
+    facts_confirmed = AffineHalfspace{QQFieldElem}[]
 
-#     all_confirmed = false
-#     while !all_confirmed
-#         facts = facets(P)
-#         all_confirmed = true
+    all_confirmed = false
+    while !all_confirmed
+        facts = facets(P)
+        all_confirmed = true
 
-#         for fc in facts
-#             fc in facts_confirmed && continue
+        for fc in facts
+            fc in facts_confirmed && continue
 
-#             nv = (Int).(fc.a[1,:])
-#             val = fc.b
-#             val2 = elim_supp_func!(E, nv)
-#             if val2 == val
-#                 @info "facet confirmed"
-#                 push!(facts_confirmed, fc)
-#                 continue
-#             end
+            nv = (Int).(fc.a[1,:])
+            val = fc.b
+            val2 = elim_supp_func!(E, nv)
+            if val2 == val
+                @info "facet confirmed"
+                push!(facts_confirmed, fc)
+                continue
+            end
 
-#             new_vert = elim_vertex!(E, nv)
+            w = 10000 * nv + rand(-10:10, length(nv))
+            new_vert = elim_vertex!(E, w)
 
-#             if !(new_vert in P) # check if new vertex was actually obtained
-#                 @info "new vertex"
-#                 P = convex_hull(P, convex_hull([new_vert]))
-#                 all_confirmed = false
-#                 break
-#             end
-#         end
-#     end
+            if !(new_vert in P) # check if new vertex was actually obtained
+                @info "new vertex"
+                P = convex_hull(P, convex_hull([new_vert]))
+                all_confirmed = false
+                break
+            end
+        end
+    end
 
-#     return P
-# end
+    return P
+end
+
+function elim_vertex!(E::ElimData, covec::Vector{Int})
+    if E.current_covec != covec
+        deform_new_covector!(E, covec)
+    end
+    return elim_vertex(E)
+end
+
+function elim_supp_func!(E::ElimData, covec::Vector{Int})
+    if E.current_covec != covec
+        deform_new_covector!(E, covec)
+    end
+    return elim_supp_func(E)
+end
 
 function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
 
@@ -77,7 +92,9 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
     V_ext = hcat(E.V, E.V)
     wd, p0, p1 = homotopy(A_target, V_ext, A_start, V_ext,
                           E.current_ms, E.current_lift)
-    walk_homotopy!(wd, p0, p1)
+    with_logger(NullLogger()) do
+        walk_homotopy!(wd, p0, p1)
+    end
 
     sz = size(A_target, 2)
     M_final = MCI(wd.M.V[:, 1:sz], wd.M.A[:, 1:sz])
@@ -120,3 +137,13 @@ function elim_vertex(E::ElimData)
     return [Int(coeff(sv, v)) for v in t]
 end
     
+function affine_hull_int(P::Polyhedron{QQFieldElem})
+    af = affine_hull(P)
+    af_int = AffineHyperplane{QQFieldElem}[]
+    for h in af
+        g = lcm((denominator).(h.a[1, :])..., denominator(h.b))
+        push!(af_int, affine_hyperplane(g * h.a[1, :], g * h.b))
+    end
+    return af_int
+end
+              
