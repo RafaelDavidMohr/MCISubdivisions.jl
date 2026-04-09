@@ -58,53 +58,36 @@
 #     return P
 # end
 
-function elim_supp_func(A::Matrix{Int}, V::Matrix{C}, w::Vector{Int}) where C
-    n = size(V, 1) - 1
-    Aw = vcat(A[1:n, :], permutedims(vcat(zeros(Int, n), w)) * A)
-    return mixed_shadow_volume(Aw, V)
-end
+function symbolic_volume(A_mod::Matrix{C},
+                         m::Vector{Vector{Int}},
+                         evl::Vector{Int}) where C
 
-function symbolic_volume(A_mod::Matrix{Int}, m::Vector{Vector{Int}}, n::Int, w::Vector{Int})
     mat = hcat([linear_span(A_mod, S) for S in m]...)
-    res = zeros(Int, size(A_mod, 1) - n)
-    for i in 1:size(mat, 2)
-        sgn = (-1)^(n+1+i)
-        res += Int(round(det(mat[1:n, 1:end .!= i])))*sgn*vec(mat[n+1:end, i])
-    end
-    return dot(w, res) > 0 ? res : -res
+    R = parent(first(A_mod))
+    d = det(matrix(R, mat))
+    return d(evl...) > 0 ? d : -d
 end
 
 function elim_supp_func(E::ElimData)
+    R, t = polynomial_ring(QQ, "t")
+    n = size(E.V, 1) - 1
+    Aw = vcat((R).(E.A[1:n, :]),
+              t .* permutedims(vcat(zeros(Int, n), E.current_covec)) * E.A)
+    AC = vcat((R).(E.A[1:n, :]), (R).(repeat([E.shift], 1, size(E.A, 2))))
+    A_mod = hcat(Aw, AC)
+    sv = sum([symbolic_volume(A_mod, m, [1]) for m in E.current_ms])
+    return Int(coeff(sv, 1))
+end
+
+function elim_vertex(E::ElimData)
     n = size(E.V, 1) - 1
     k = size(E.A, 1) - n - 1
-    As = size(E.A, 2)
-    A_ext = vcat(E.A, zeros(Int, 1, As))
-    A_ext_2 = vcat(E.A[1:n, :], zeros(Int, k+1, As), repeat([E.shift], 1, As))
-    A_mod = hcat(A_ext, A_ext_2)
-    w = vcat(E.current_covec, [1])
-    return sum([symbolic_volume(A_mod, m, n, w) for m in E.current_ms])
+    R, t = polynomial_ring(QQ, ["t$i" for i in 1:k+1])
+    Aw = vcat((R).(E.A[1:n, :]),
+              permutedims(vcat(zeros(R, n), t)) * (R).(E.A))
+    AC = vcat((R).(E.A[1:n, :]), (R).(repeat([E.shift], 1, size(E.A, 2))))
+    A_mod = hcat(Aw, AC)
+    sv = sum([symbolic_volume(A_mod, m, E.current_covec) for m in E.current_ms])
+    return [Int(coeff(sv, v)) for v in t]
 end
-
-# mixed shadow volume w.r.t. last coordinate
-function mixed_shadow_volume(A::Matrix{Int}, V::Matrix{C}, cashed_mv::Int, cashed_shft::Int) where C
-    A_proj = copy(A)
-    A_proj[end, :] = zeros(Int, 1, size(A, 2))
-    min_exp = minimum(i -> A[end, i], 1:size(A, 2))
-
-    with_logger(NullLogger()) do
-        if min_exp >= 0
-            return mixed_volume(hcat(A, A_proj), hcat(V, V))
-        end
-
-        if min_exp < cashed_shft
-            error("compute new shift")
-        end
-
-        A_proj_shft = copy(A)
-        A_proj_shft[end, :] = repeat([cashed_shft], 1, size(A, 2))
-
-        a = mixed_volume(hcat(A, A_proj_shft), hcat(V, V))
-        # b = mixed_volume(hcat(A_proj, A_proj_shft), hcat(V, V))
-        return a - cashed_mv
-    end
-end
+    
