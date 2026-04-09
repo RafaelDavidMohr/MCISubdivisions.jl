@@ -196,15 +196,21 @@ function compute_active_walls!(m::MixedCell,
     for i in 1:k
         apd = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
         for j in cayley_indices(m, i)
-            rs = vcat(M.A[:, j], apd)
-            sol = cayley_config \ rs
             c_cfs = zeros(Int, size(M.A, 2))
-            for (l, ind) in enumerate(all_m_inds)
-                c_cfs[ind] = Int(round(d * sol[l]))
+            idx = findfirst(l -> M.A[:, l] == M.A[:, j], m.inds[i])
+            if !isnothing(idx)
+                c_cfs[m.inds[i][idx]] = 1
+                c_cfs[j] = -1
+            else
+                rs = vcat(M.A[:, j], apd)
+                sol = cayley_config \ rs
+                for (l, ind) in enumerate(all_m_inds)
+                    c_cfs[ind] = Int(round(d * sol[l]))
+                end
+                c_cfs[j] -= d
+                g = gcd(c_cfs)
+                c_cfs = [div(cf, g) for cf in c_cfs]
             end
-            c_cfs[j] -= d
-            g = gcd(c_cfs)
-            c_cfs = [div(cf, g) for cf in c_cfs]
             c = Hyperplane(c_cfs)
             sgn = signbit(partial_sum(m.inds[i], c))
             add_to_dict!(walls, c, (m, i, sgn))

@@ -16,6 +16,7 @@ function MixedCell(inds::Vector{Vector{Int}}, M::MCI)
 end
 
 # assume that V is echelonized
+# TODO: OPTIMIZE
 function find_nonzero_indices(V::Matrix{C}, inds::Vector{Int}, test_inds::Vector{Int},
                               V_rank::Int) where C
 
