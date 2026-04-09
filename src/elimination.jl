@@ -58,6 +58,35 @@
 #     return P
 # end
 
+function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
+
+    n = size(E.V, 1) - 1
+    w_dot_old = (permutedims(vcat(zeros(Int, n), E.current_covec)) * E.A) .- E.shift
+    w_dot_new = (permutedims(vcat(zeros(Int, n), new_covec)) * E.A)
+    new_shift = min(minimum(w_dot_new) - 1, 0) 
+    w_dot_new = w_dot_new .- new_shift
+
+    scl = Int(ceil(maximum(w_dot_new ./ w_dot_old))) + 10
+    w_dot_old *= scl
+    
+    A_start = hcat(vcat(E.A[1:n, :], w_dot_old),
+                   vcat(E.A[1:n, :], zeros(Int, 1, size(E.A, 2))))
+    A_target = hcat(vcat(E.A[1:n, :], w_dot_new),
+                    vcat(E.A[1:n, :], zeros(Int, 1, size(E.A, 2))))
+
+    V_ext = hcat(E.V, E.V)
+    wd, p0, p1 = homotopy(A_target, V_ext, A_start, V_ext,
+                          E.current_ms, E.current_lift)
+    walk_homotopy!(wd, p0, p1)
+
+    sz = size(A_target, 2)
+    M_final = MCI(wd.M.V[:, 1:sz], wd.M.A[:, 1:sz])
+    E.current_ms = [m.inds for m in gather_mixed_cells(M_final, wd, sz)]
+    E.current_lift = p1.eps[1:sz]
+    E.current_covec = new_covec
+    E.shift = new_shift
+end
+
 function symbolic_volume(A_mod::Matrix{C},
                          m::Vector{Vector{Int}},
                          evl::Vector{Int}) where C

@@ -210,10 +210,10 @@ mutable struct ElimData
         k = size(A, 1) - n - 1
         w = rand(-1000:1000, k + 1)
         Aw = vcat(A[1:n, :], permutedims(vcat(zeros(Int, n), w)) * A)
-        min_exp = minimum(i -> Aw[end, i], 1:size(Aw, 2))
+        shft = min(minimum(i -> Aw[end, i], 1:size(Aw, 2)) - 1, 0) 
         A_shift = copy(Aw)
-        A_shift[end, :] = repeat([min_exp - 1000], 1, size(Aw, 2))
+        A_shift[end, :] = repeat([shft], 1, size(Aw, 2))
         p, ms = mixed_subdivision(hcat(Aw, A_shift), hcat(V, V))
-        return new(A, V, min_exp - 1000, w, p.eps, [m.inds for m in ms])
+        return new(A, V, shft, w, p.eps, [m.inds for m in ms])
     end
 end
