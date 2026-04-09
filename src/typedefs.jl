@@ -213,7 +213,9 @@ mutable struct ElimData
         shft = min(minimum(i -> Aw[end, i], 1:size(Aw, 2)) - 1, 0) 
         A_shift = copy(Aw)
         A_shift[end, :] = repeat([shft], 1, size(Aw, 2))
-        p, ms = mixed_subdivision(hcat(Aw, A_shift), hcat(V, V))
+        p, ms = with_logger(NullLogger()) do
+            mixed_subdivision(hcat(Aw, A_shift), hcat(V, V))
+        end
         return new(A, V, shft, w, p.eps, [m.inds for m in ms])
     end
 end

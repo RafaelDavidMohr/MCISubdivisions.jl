@@ -7,13 +7,13 @@ function construct_polytope!(E::ElimData)
     amb_dim = k + 1 
     @info "computing initial vertices"
 
-    w = rand(-1000:1000, amb_dim)
+    w = rand(-10:10, amb_dim)
     P = convex_hull([elim_vertex(E)])
     dm = 0
     while dm < amb_dim 
         @info "dimension $(dm)"
         af = affine_hull_int(P)
-        cfs = rand(-1000:1000, length(af))
+        cfs = rand(-10:10, length(af))
         w = (Int).(sum(cfs .* [(numerator).(h.a[1, :]) for h in af]))
         vert = elim_vertex!(E, w)
         if all(h -> vert in h, af)
@@ -44,7 +44,7 @@ function construct_polytope!(E::ElimData)
                 continue
             end
 
-            w = 10000 * nv + rand(-10:10, length(nv))
+            w = 1000 * nv + rand(-10:10, length(nv))
             new_vert = elim_vertex!(E, w)
 
             if !(new_vert in P) # check if new vertex was actually obtained
