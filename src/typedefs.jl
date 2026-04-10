@@ -227,6 +227,6 @@ mutable struct ElimData
         p, ms = with_logger(NullLogger()) do
             mixed_subdivision(hcat(Aw, A_shift), hcat(V, V))
         end
-        return new(A, V, shft, w, p.eps, [m.inds for m in ms])
+        return new(A, V, shft, w, p.eps, ms)
     end
 end

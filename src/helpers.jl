@@ -284,13 +284,13 @@ function delete_mixed_cell!(wd::WalkData, m::MixedCell, rr_counter::RRCounter)
     delete!(rr_counter.cnt, m)
 end
 
-function gather_mixed_cells(M::MCI, wd::WalkData, max_ind=0::Int)
+function gather_mixed_cells(wd::WalkData, max_ind=0::Int)
 
-    result = Set{MixedCell}()
+    result = Set{MixedCellInds}()
     for c in keys(wd.walls)
         for (m, act_index, sgn) in wd.walls[c]
             !iszero(max_ind) && any(S -> any(i -> i > max_ind, S), m.inds) && continue
-            push!(result, MixedCell(m.inds, M))
+            push!(result, m.inds)
         end
     end
 

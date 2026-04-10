@@ -39,8 +39,7 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     walk_homotopy!(wd, p0, p1)
 
     A_size = size(A, 2)
-    M_final = MCI(wd.M.V[:, 1:A_size], wd.M.A[:, 1:A_size])
-    return DualVector(p1.r[1:A_size], p1.eps[1:A_size]), gather_mixed_cells(M_final, wd, A_size)
+    return DualVector(p1.r[1:A_size], p1.eps[1:A_size]), gather_mixed_cells(wd, A_size)
 end
 
 function get_eliminant_polytope(F::Vector{<:MPolyRingElem})
