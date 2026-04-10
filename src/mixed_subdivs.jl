@@ -43,15 +43,15 @@ function walk_homotopy!(w::WalkData, p0::DualVector, p1::DualVector;
 end
 
 function deform_subdivision(A::Matrix{Int}, V::Matrix{C},
-                            ms::Vector{MixedCell}, p0::DualVector,
+                            ms::Vector{MixedCellInds}, p0::DualVector,
                             p1::DualVector, target_rr_count::Int) where C
 
     rr_counter = RRCounter(A, V, target_rr_count)
 
     M = MCI(V, A)
-    wd = WalkData(M, ms)
+    wd = WalkData(M, [MixedCell(m, M) for m in ms])
     cnt_reached, t_cross = walk_homotopy!(wd, p0, p1, rr_counter = rr_counter)
-    return cnt_reached, t_cross, gather_mixed_cells(M, wd)
+    return cnt_reached, t_cross, gather_mixed_cells(wd)
 end
 
 function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem})
@@ -62,15 +62,12 @@ function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem})
     # extended MCI
     F = parent(first(V))
     p_start = rand(-10000:10000, A_size)
-    A_start, V_start, init_mc = if no_multiset
-        @info "Choosing polyhedral starting system"
-        sd = subdivision_of_points(transpose(A), -p_start)
-        copy(A), rand_arr_ff(F, n, A_size), [[c] for c in maximal_cells(sd)]
-    else
-        @info "Choosing total degree starting system"
-        max_deg = maximum(i -> sum(A[:, i]), 1:A_size)
-        [i == j ? max_deg : 0 for i in 1:n, j in 1:n], rand_arr_ff(F, n), [collect(1:A_size)]
-    end
+    @info "Building start system"
+    col_inds = select_max_weight_columns(A, p_start)
+    sd = subdivision_of_points(transpose(A[:, col_inds]), -p_start[col_inds])
+    A_start = copy(A)
+    V_start = rand_arr_ff(F, n, A_size)
+    init_mc = [[col_inds[c]] for c in maximal_cells(sd)]
 
     return homotopy(A, V, A_start, V_start, init_mc, p_start)
 end
@@ -189,8 +186,8 @@ function compute_active_walls!(m::MixedCell,
         end
     end
 
-    cayley_config = factorize(cayley_config)
-    d = Int(round(det(cayley_config)))
+    cayley_config_fac = factorize(cayley_config)
+    d = Int(round(det(cayley_config_fac)))
     all_m_inds = vcat(m.inds...)
 
     for i in 1:k
@@ -203,7 +200,7 @@ function compute_active_walls!(m::MixedCell,
                 c_cfs[j] = -1
             else
                 rs = vcat(M.A[:, j], apd)
-                sol = cayley_config \ rs
+                sol = cayley_config_fac \ rs
                 for (l, ind) in enumerate(all_m_inds)
                     c_cfs[ind] = Int(round(d * sol[l]))
                 end

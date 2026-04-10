@@ -98,7 +98,7 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
 
     sz = size(A_target, 2)
     M_final = MCI(wd.M.V[:, 1:sz], wd.M.A[:, 1:sz])
-    E.current_ms = [m.inds for m in gather_mixed_cells(M_final, wd, sz)]
+    E.current_ms = gather_mixed_cells(wd, sz)
     E.current_lift = p1.eps[1:sz]
     E.current_covec = new_covec
     E.shift = new_shift

@@ -22,7 +22,7 @@ function random_lift(l)
     return (numerator).(mult * b)
 end
 
-t_cross = MCIS.dual_zero(GF(2))
+t_cross = MCIS.zero(MCIS.DualNumber)
 p_new = MCIS.DualVector(random_lift(size(A, 2)))
 i = 1
 while true

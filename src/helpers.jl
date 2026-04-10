@@ -147,6 +147,25 @@ function normal_space(A::Matrix{C}, m::MixedCellInds) where C
     return permutedims(Matrix(kernel(matrix(F, eqns))))
 end
 
+function select_max_weight_columns(A::Matrix, w::Vector)
+    column_dict = Dict()
+    
+    for i in 1:size(A, 2)
+        col_key = Tuple(A[:, i])
+        
+        if haskey(column_dict, col_key)
+            best_idx, best_weight = column_dict[col_key]
+            if w[i] > best_weight
+                column_dict[col_key] = (i, w[i])
+            end
+        else
+            column_dict[col_key] = (i, w[i])
+        end
+    end
+    
+    return sort([idx for (idx, _) in values(column_dict)])
+end
+
 # --- circuits --- #
 
 function nz_inds(c::Hyperplane)
