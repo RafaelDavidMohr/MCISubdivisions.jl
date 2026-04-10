@@ -111,12 +111,13 @@ end
 struct MCI
     V::Matrix{FqFieldElem} # stored over random finite field to speed up computations
     A::Matrix{Int}
+    rank_cache::Dict{Vector{Int}, Int}
 
     function MCI(V::Matrix{FqFieldElem}, A::Matrix{Int})
         @assert size(V, 2) == size(A, 2) "number of coefficients and monomials does not match."
         F = parent(first(V))
         R = echelon_form(matrix(F, V))
-        return new(Matrix(R), A)
+        return new(Matrix(R), A, Dict{Vector{Int}, Int}())
     end
 end
 
@@ -134,6 +135,14 @@ prime_field_V(M::MCI) = parent(first(M.V))
 
 function ambient_dim(M::MCI)
     return size(M.A, 1)
+end
+
+function rank!(M::MCI, inds::Vector{Int})
+    return get(M.rank_cache, inds) do
+        rk = rank(matrix(prime_field_V(M), M.V[:, inds]))
+        M.rank_cache[inds] = rk
+        rk
+    end
 end
 
 # --- Lift --- #

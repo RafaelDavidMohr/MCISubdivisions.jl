@@ -122,7 +122,8 @@ function walk_wall!(wd::WalkData, c::Hyperplane, rr_counter::RRCounter)
     end
 end
 
-function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, sgn::Bool,
+function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int,
+                          sgn::Bool,
                           new_ms::Set{Vector{Vector{Int}}})
 
     # indices from which new mixed cell component can come
@@ -138,7 +139,6 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int, s
     Ss_new = Vector{Int}[]
     F = prime_field_V(M)
     for (k, i) in enumerate(m.inds[act_index])
-        # (iszero(c.cfs[i]) || signbit(c.cfs[i]) != sgn) && continue
         candidate_indices = vcat(m.inds[act_index][1:k-1], m.inds[act_index][k+1:end],
                                  new_inds)
         V_trunc_inds = vcat(candidate_indices,

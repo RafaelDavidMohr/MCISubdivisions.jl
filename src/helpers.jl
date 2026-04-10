@@ -5,25 +5,34 @@ function MixedCell(inds::Vector{Vector{Int}}, M::MCI)
         sort!(ind)
     end
     loc_inds = Vector{Int}[]
+    rem_inds = indices(M)
+    all_m_inds = Int[]
+    rk = 0
+    k = length(inds)
     for i in 1:length(inds)
-        rem_inds = setdiff(indices(M), vcat(inds[1:i-1]...))
-        rk = sum((length).(inds[1:i-1])) - (i - 1)
-        loc_inds_i = isone(i) ? rem_inds : find_nonzero_indices(M.V, vcat(inds[1:i-1]...), rem_inds, rk)
+        rem_inds = setdiff(rem_inds, inds[i])
+        all_m_inds = vcat(all_m_inds, inds[i])
+        rk += length(inds[i]) - 1
+        loc_inds_i = if i != k
+            find_loc_indices!(M, all_m_inds, rem_inds, rk)
+        else
+            copy(rem_inds)
+        end
         sort!(loc_inds_i)
         push!(loc_inds, loc_inds_i)
+        setdiff!(rem_inds, loc_inds_i)
     end
     return MixedCell(inds, loc_inds)
 end
 
 # assume that V is echelonized
 # TODO: OPTIMIZE
-function find_nonzero_indices(V::Matrix{C}, inds::Vector{Int}, test_inds::Vector{Int},
-                              V_rank::Int) where C
+function find_loc_indices!(M::MCI, inds::Vector{Int}, test_inds::Vector{Int},
+                           V_rank::Int) 
 
     res = Int[]
-    F = parent(first(V))
     for i in test_inds
-        if rank(matrix(F, V[:, vcat(inds, [i])])) == V_rank + 1
+        if rank!(M, vcat(inds, [i])) == V_rank
             push!(res, i)
         end
     end
@@ -80,10 +89,10 @@ end
 
 function cayley_indices(m::MixedCell, j::Int)
     if j == length(m)
-        return sort(setdiff(m.loc_inds[j], m.inds[j]))
+        return m.loc_inds[j]
     end
-    res = setdiff(m.loc_inds[j], vcat(m.inds[j], m.loc_inds[j+1]))
-    return sort(vcat(res, [first(m.inds[j+1])]))
+    res = vcat(m.loc_inds[j], [first(m.inds[j+1])])
+    return sort(res)
 end
 
 # --- matrix --- #
