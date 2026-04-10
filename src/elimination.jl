@@ -105,7 +105,7 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
 end
 
 function symbolic_volume(A_mod::Matrix{C},
-                         m::Vector{Vector{Int}},
+                         m::MixedCellInds,
                          evl::Vector{Int}) where C
 
     mat = hcat([linear_span(A_mod, S) for S in m]...)

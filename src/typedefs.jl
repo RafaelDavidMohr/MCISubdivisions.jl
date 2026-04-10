@@ -1,7 +1,9 @@
 # --- Mixed Cell --- #
 
+const MixedCellInds = Vector{Vector{Int}}
+
 struct MixedCell
-    inds::Vector{Vector{Int}}
+    inds::MixedCellInds
     loc_inds::Vector{Vector{Int}}
 end
 
@@ -212,7 +214,7 @@ mutable struct ElimData
     shift::Int
     current_covec::Vector{Int}
     current_lift::Vector{Int}
-    current_ms::Vector{Vector{Vector{Int}}}
+    current_ms::Vector{MixedCellInds}
 
     function ElimData(A::Matrix{Int}, V::Matrix{FqFieldElem})
         n = size(V, 1) - 1

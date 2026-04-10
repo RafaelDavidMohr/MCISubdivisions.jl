@@ -78,7 +78,7 @@ end
 # works only if conv(A_target) ⊆ conv(A_start)
 function homotopy(A_target::Matrix{Int}, V_target::Matrix{FqFieldElem},
                   A_start::Matrix{Int}, V_start::Matrix{FqFieldElem},
-                  ms_start::Vector{Vector{Vector{Int}}},
+                  ms_start::Vector{MixedCellInds},
                   p_start::Vector{Int})
 
     A_ext = hcat(A_target, A_start)
@@ -106,7 +106,7 @@ end
 function walk_wall!(wd::WalkData, c::Hyperplane, rr_counter::RRCounter)
     active_mc_data = wd.walls[c]
     delete!(wd.walls, c) 
-    new_ms = Set{Vector{Vector{Int}}}()
+    new_ms = Set{MixedCellInds}()
     cnt = 0
     for (m, act_index, sgn) in active_mc_data
         delete_mixed_cell!(wd, m, rr_counter)
@@ -124,7 +124,7 @@ end
 
 function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int,
                           sgn::Bool,
-                          new_ms::Set{Vector{Vector{Int}}})
+                          new_ms::Set{MixedCellInds})
 
     # indices from which new mixed cell component can come
     # todo: if this doesnt work check if this is correct

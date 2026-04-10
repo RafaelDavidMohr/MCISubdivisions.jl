@@ -1,6 +1,6 @@
 # --- mixed cells --- #
 
-function MixedCell(inds::Vector{Vector{Int}}, M::MCI)
+function MixedCell(inds::MixedCellInds, M::MCI)
     for ind in inds
         sort!(ind)
     end
@@ -43,7 +43,7 @@ function vol(m::MixedCell, A::Matrix{Int})
     return vol(m.inds, A)
 end
 
-function vol(m::Vector{Vector{Int}}, A::Matrix{Int})
+function vol(m::MixedCellInds, A::Matrix{Int})
     mat = hcat([linear_span(A, S) for S in m]...)
     lu = LinearAlgebra.lu(mat)
     return round(Int, abs(LinearAlgebra.det(lu)))
@@ -118,12 +118,12 @@ function linear_span(A::Matrix{C}, inds::Vector{Int}) where C
     return L
 end
 
-function is_affine_independent(A::Matrix{Int}, inds::Vector{Vector{Int}})
+function is_affine_independent(A::Matrix{Int}, inds::MixedCellInds)
     mat = hcat([linear_span(A, S) for S in inds]...)
     return !iszero(round(det(mat))) 
 end
 
-function normal_space(A::Matrix{C}, m::Vector{Vector{Int}}) where C
+function normal_space(A::Matrix{C}, m::MixedCellInds) where C
 
     n = size(A, 1)
     eqns = Matrix{C}(undef, n, 0)
