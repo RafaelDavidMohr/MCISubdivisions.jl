@@ -165,20 +165,25 @@ end
 
 # --- WalkData --- # 
 
-struct WalkData
+mutable struct WalkData
     M::MCI
+    cells::Set{MixedCell}
     walls::Dict{Hyperplane, Set{Tuple{MixedCell, Int, Bool}}}
-    nocross::Set{Hyperplane}
+    p0::DualVector
+    p1::DualVector
+    t_curr::Union{Nothing, DualNumber}
 end
 
 function WalkData(M::MCI,
-                  initial_mixed_cells::Vector{MixedCell})
+                  initial_mixed_cells::Vector{MixedCell},
+                  p0::DualVector,
+                  p1::DualVector)
 
     walls = Dict{Hyperplane, Set{Tuple{MixedCell, Int, Bool}}}()
     for m in initial_mixed_cells
-        compute_active_walls!(m, M, walls)
+        compute_active_walls!(m, M, walls, p0, p1, nothing)
     end
-    return WalkData(M, walls, Set{Hyperplane}())
+    return WalkData(M, Set(initial_mixed_cells), walls, p0, p1, nothing)
 end
 
 # --- RRCounter (for convenience) --- #

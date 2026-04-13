@@ -34,10 +34,11 @@ end
 
 function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
     Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
-    wd, p0, p1 = starting_system(A, Vp)
+    wd = starting_system(A, Vp)
 
-    walk_homotopy!(wd, p0, p1)
+    walk_homotopy!(wd)
 
+    p0, p1 = wd.p0, wd.p1
     A_size = size(A, 2)
     return DualVector(p1.r[1:A_size], p1.eps[1:A_size]), gather_mixed_cells(wd, A_size)
 end

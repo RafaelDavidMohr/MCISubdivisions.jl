@@ -195,31 +195,22 @@ end
 
 # --- homotopy paths --- #
     
-function first_intersection!(l0::DualVector, l1::DualVector,
-                             hyperplanes::AbstractSet{Hyperplane},
-                             last_h::Union{Nothing, Hyperplane},
-                             wd::WalkData)
-
-    last_t = if isnothing(last_h)
-        zero(DualNumber)
-    else
-        crossing_val(l0, l1, last_h)
-    end
+function first_intersection!(w::WalkData)
 
     best_t = nothing
     best_h = nothing
 
+    l0, l1 = w.p0, w.p1
+    hyperplanes = keys(w.walls)
+    to_del = Hyperplane[]
+    t_curr = w.t_curr
+
     for c in hyperplanes
-        c in wd.nocross && continue
-        if c == last_h
-            push!(wd.nocross, c)
-            continue
-        end
 
         t_c = crossing_val(l0, l1, c)
         # check if crossing between last t and 1
-        if lt_dual(t_c, last_t) || lt_dual(one(DualNumber), t_c)
-            push!(wd.nocross, c)
+        if !isnothing(t_curr) && lt_dual(t_c, t_curr)
+            push!(to_del, c)
             continue
         end
 
@@ -228,6 +219,12 @@ function first_intersection!(l0::DualVector, l1::DualVector,
             best_h = c
         end
     end
+
+    for c in to_del
+        delete!(w.walls, c)
+    end
+
+    w.t_curr = best_t
 
     return best_h, best_t
 end
@@ -300,20 +297,20 @@ function delete_mixed_cell!(wd::WalkData, m::MixedCell, rr_counter::RRCounter)
             delete!(wd.walls, c)
         end
     end
+    delete!(wd.cells, m)
     delete!(rr_counter.cnt, m)
 end
 
 function gather_mixed_cells(wd::WalkData, max_ind=0::Int)
 
-    result = Set{MixedCellInds}()
-    for c in keys(wd.walls)
-        for (m, act_index, sgn) in wd.walls[c]
-            !iszero(max_ind) && any(S -> any(i -> i > max_ind, S), m.inds) && continue
-            push!(result, m.inds)
-        end
+    iszero(max_ind) && return [m.inds for m in wd.cells]
+    result = MixedCellInds[]
+    for m in wd.cells
+        any(S -> any(i -> i > max_ind, S), m.inds) && continue
+        push!(result, m.inds)
     end
 
-    return collect(result)
+    return result
 end
 
 function add_to_dict!(d::Dict{T, Set{S}}, k::T, v::S) where {T, S}

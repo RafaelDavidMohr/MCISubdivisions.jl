@@ -8,20 +8,24 @@ function construct_polytope!(E::ElimData)
     @info "computing initial vertices"
 
     w = rand(-10:10, amb_dim)
-    P = convex_hull([elim_vertex(E)])
-    dm = 0
-    while dm < amb_dim 
-        @info "dimension $(dm)"
-        af = affine_hull_int(P)
+    vrt = elim_vertex(E)
+    @info "new vertex $(vrt)"
+    P = convex_hull([vrt])
+    nverts = 1
+    while nverts < amb_dim + 1
+        @info "dimension $(nverts - 1)"
+        af = integer_affine_span(P)
         cfs = rand(-10:10, length(af))
-        w = (Int).(sum(cfs .* [(numerator).(h.a[1, :]) for h in af]))
+        w = make_smaller(sum(cfs .* af))
         vert = elim_vertex!(E, w)
-        if all(h -> vert in h, af)
+        fv = first(vertices(P))
+        if all(h -> iszero(dot(h, vert - (Int).(fv))), af)
             vert = elim_vertex!(E, -w)
-            all(h -> vert in h, af) && break
+            all(h -> iszero(dot(h, vert - (Int).(fv))), af) && break
         end
+        @info "new vertex $(vert)"
         P = convex_hull(P, convex_hull([vert]))
-        dm = dim(P)
+        nverts += 1
     end
     @info "done"
 
@@ -37,18 +41,16 @@ function construct_polytope!(E::ElimData)
 
             nv = (Int).(fc.a[1,:])
             val = fc.b
-            val2 = elim_supp_func!(E, nv)
-            if val2 == val
+            w = 100 * nv + rand(-2:2, length(nv))
+            new_vert = elim_vertex!(E, w)
+            if dot(nv, new_vert) == val
                 @info "facet confirmed"
                 push!(facts_confirmed, fc)
                 continue
             end
 
-            w = 1000 * nv + rand(-10:10, length(nv))
-            new_vert = elim_vertex!(E, w)
-
             if !(new_vert in P) # check if new vertex was actually obtained
-                @info "new vertex"
+                @info "new vertex $(new_vert)"
                 P = convex_hull(P, convex_hull([new_vert]))
                 all_confirmed = false
                 break
@@ -136,14 +138,26 @@ function elim_vertex(E::ElimData)
     sv = sum([symbolic_volume(A_mod, m, E.current_covec) for m in E.current_ms])
     return [Int(coeff(sv, v)) for v in t]
 end
-    
-function affine_hull_int(P::Polyhedron{QQFieldElem})
-    af = affine_hull(P)
-    af_int = AffineHyperplane{QQFieldElem}[]
-    for h in af
-        g = lcm((denominator).(h.a[1, :])..., denominator(h.b))
-        push!(af_int, affine_hyperplane(g * h.a[1, :], g * h.b))
+
+function integer_affine_span(P::Polyhedron{QQFieldElem})
+    vs = vertices(P)
+    if isone(length(vs))
+        n = Oscar.ambient_dim(P)
+        return [[j == i ? 1 : 0 for j in 1:n] for i in 1:n]
     end
-    return af_int
+    mat = (Int).(vcat([transpose(vs[1] - v) for v in vs[2:end]]...))
+    k = kernel(matrix(ZZ, mat), side = :right)
+    return filter(!isempty, [(Int).(k[:, i]) for i in 1:size(k, 2)])
 end
-              
+
+function make_smaller(v::Vector{Int})
+    mx = maximum((abs).(v))
+    if mx > 10000
+        nd = ndigits(mx)
+        div = 10^(nd - 4)
+        return (Int).((round).(v ./ div))
+    else
+        return v
+    end
+end
+

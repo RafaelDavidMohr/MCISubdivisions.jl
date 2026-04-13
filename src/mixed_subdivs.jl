@@ -1,6 +1,6 @@
 # --- Functions for mixed subdivisions and homotopies --- #
 
-function walk_homotopy!(w::WalkData, p0::DualVector, p1::DualVector;
+function walk_homotopy!(w::WalkData;
                         rr_counter=empty_rr_counter())
 
     trr = rr_counter.target_rr_count
@@ -17,14 +17,14 @@ function walk_homotopy!(w::WalkData, p0::DualVector, p1::DualVector;
     end
 
     @info "starting homotopy"
+    p0, p1 = w.p0, w.p1
     if p0.r == p1.r && p0.eps == p1.eps
         @info "no deformation, nothing to do"
         return true, zero(DualNumber)
     end
 
-    c_prev = nothing
     while true
-        c_int, t_cross = first_intersection!(p0, p1, keys(w.walls), c_prev, w)
+        c_int, t_cross = first_intersection!(w)
         if isnothing(c_int)
             @info "no intersection left, finished"
             return false, zero(DualNumber)
@@ -93,9 +93,9 @@ function homotopy(A_target::Matrix{Int}, V_target::Matrix{FqFieldElem},
     # initial mixed cells
     init_mc = [MixedCell([ci .+ A_size for ci in c], M) for c in ms_start]
 
-    wd = WalkData(M, init_mc)
+    wd = WalkData(M, init_mc, p0, p1)
 
-    return wd, p0, p1
+    return wd
 end
 
 # --- Functions related to mixed cell cones --- #
@@ -112,7 +112,8 @@ function walk_wall!(wd::WalkData, c::Hyperplane, rr_counter::RRCounter)
     @info "$(length(new_ms)) new mixed cells"
     for new_mc_inds in new_ms
         new_mc = MixedCell(new_mc_inds, wd.M)
-        compute_active_walls!(new_mc, wd.M, wd.walls)
+        compute_active_walls!(new_mc, wd.M, wd.walls, wd.p0, wd.p1, wd.t_curr)
+        push!(wd.cells, new_mc)
         if rr_counter.target_rr_count >= 0
             add_mixed_cell!(rr_counter, new_mc)
         end
@@ -171,7 +172,10 @@ end
 
 function compute_active_walls!(m::MixedCell,
                                M::MCI,
-                               walls::Dict{Hyperplane, Set{Tuple{MixedCell, Int, Bool}}})
+                               walls::Dict{Hyperplane, Set{Tuple{MixedCell, Int, Bool}}},
+                               p0::DualVector,
+                               p1::DualVector,
+                               t_cross::Union{Nothing, DualNumber})
 
     k = length(m)
     n = ambient_dim(M)
@@ -209,6 +213,11 @@ function compute_active_walls!(m::MixedCell,
                 c_cfs = [div(cf, g) for cf in c_cfs]
             end
             c = Hyperplane(c_cfs)
+            t_c = crossing_val(p0, p1, c)
+            (lt_dual(t_c, zero(DualNumber)) || lt_dual(one(DualNumber), t_c)) && continue
+            if !isnothing(t_cross) && (t_c == t_cross || lt_dual(t_c, t_cross))
+                continue
+            end
             sgn = signbit(partial_sum(m.inds[i], c))
             add_to_dict!(walls, c, (m, i, sgn))
         end
