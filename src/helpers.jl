@@ -337,3 +337,68 @@ function get_A_disc_equations(A::Matrix{Int}, dehom=1)
     fs = [s; [v*derivative(s, v) for v in x]]
     return fs
 end
+
+# for parsing files from odebase.org (with help from AI)
+function parse_ode_system_manual(filename)
+    content = read(filename, String)
+    
+    lines = split(content, "\n")
+    eq_lines = String[]
+    in_eq = false
+    
+    for line in lines
+        if startswith(line, "[ Eq(")
+            in_eq = true
+        end
+        
+        if in_eq
+            push!(eq_lines, line)
+        end
+        
+        if endswith(line, "]") && in_eq
+            break
+        end
+    end
+
+    eq_text = join(eq_lines, "\n")
+    
+    rhs_pattern = r"Derivative\([^,]+,\s*t\)\s*,\s*(.+?)\s*\)(?:,| \])"
+    rhs_matches = eachmatch(rhs_pattern, eq_text)
+    rhs_list = [strip(m.captures[1]) for m in rhs_matches]
+    
+    var_pattern = r"x\d+"
+    var_matches = eachmatch(var_pattern, eq_text)
+    vars = unique([m.match for m in var_matches])
+    x_vars = sort(vars, by=x -> parse(Int, match(r"x(\d+)", x).captures[1]))
+    
+    param_pattern = r"k\d+"
+    param_matches = eachmatch(param_pattern, eq_text)
+    params = unique([m.match for m in param_matches])
+    params_sorted = sort(params, by=k -> parse(Int, match(r"k(\d+)", k).captures[1]))
+    
+    return (String).(x_vars), (String).(params_sorted), (String).(rhs_list)
+end
+
+function create_steady_state(x_vars, params, rhs)
+    param_ring_expr = quote
+        P, $(Expr(:tuple, [Symbol(v) for v in params]...)) = polynomial_ring(QQ, $(params))
+        KP = fraction_field(P)
+    end
+    eval(param_ring_expr)
+
+    poly_ring_expr = quote
+        R, $(Expr(:tuple, [Symbol(x) for x in x_vars]...)) = polynomial_ring(KP, $(x_vars))
+    end
+    eval(poly_ring_expr)
+
+    eqns = [eval(Meta.parse(eqn)) for eqn in rhs]
+    return eqns
+end
+
+function make_eci(steady_state_system)
+    A, V = get_eci_data(steady_state_system)
+    R = parent(first(steady_state_system))
+    P = base_ring(R)
+    param_evals = rand(-100:100, ngens(P))
+    return A, [f(param_evals...) for f in V]
+end
