@@ -41,7 +41,7 @@ function construct_polytope!(E::ElimData)
 
             nv = (Int).(fc.a[1,:])
             val = fc.b
-            w = 100 * nv + rand(-2:2, length(nv))
+            w = make_smaller(10000 * nv + rand(-10:10, length(nv)))
             new_vert = elim_vertex!(E, w)
             if dot(nv, new_vert) == val
                 @info "facet confirmed"
@@ -83,6 +83,8 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
     new_shift = min(minimum(w_dot_new) - 1, 0) 
     w_dot_new = w_dot_new .- new_shift
 
+    # scl = maximum(w_dot_new - w_dot_old) + 1
+    # w_dot_old .+= scl
     scl = Int(ceil(maximum(w_dot_new ./ w_dot_old))) + 10
     w_dot_old *= scl
     
@@ -92,16 +94,16 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
                     vcat(E.A[1:n, :], zeros(Int, 1, size(E.A, 2))))
 
     V_ext = hcat(E.V, E.V)
-    wd, p0, p1 = homotopy(A_target, V_ext, A_start, V_ext,
-                          E.current_ms, E.current_lift)
+    wd = homotopy(A_target, V_ext, A_start, V_ext,
+                  E.current_ms, E.current_lift)
     with_logger(NullLogger()) do
-        walk_homotopy!(wd, p0, p1)
+        walk_homotopy!(wd)
     end
 
     sz = size(A_target, 2)
     M_final = MCI(wd.M.V[:, 1:sz], wd.M.A[:, 1:sz])
     E.current_ms = gather_mixed_cells(wd, sz)
-    E.current_lift = p1.eps[1:sz]
+    E.current_lift = wd.p1.eps[1:sz]
     E.current_covec = new_covec
     E.shift = new_shift
 end
@@ -152,9 +154,9 @@ end
 
 function make_smaller(v::Vector{Int})
     mx = maximum((abs).(v))
-    if mx > 10000
+    if mx > 1000
         nd = ndigits(mx)
-        div = 10^(nd - 4)
+        div = 10^(nd - 3)
         return (Int).((round).(v ./ div))
     else
         return v
