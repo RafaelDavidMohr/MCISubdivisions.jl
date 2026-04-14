@@ -118,6 +118,12 @@ function linear_span(A::Matrix{C}, inds::Vector{Int}) where C
     return L
 end
 
+function reduce_to_linear_span(A::Matrix{Int})
+    L = linear_span(A, collect(1:size(A, 2)))
+    Lt = hermite_form(matrix(ZZ, L), trim = :true)
+    return hcat(zeros(Int, size(Lt, 1)), (Int).(Matrix(Lt)))
+end
+
 function is_affine_independent(A::Matrix{Int}, inds::MixedCellInds)
     mat = hcat([linear_span(A, S) for S in inds]...)
     return !iszero(round(det(mat))) 
@@ -338,45 +344,64 @@ function get_A_disc_equations(A::Matrix{Int}, dehom=1)
     return fs
 end
 
-# for parsing files from odebase.org (with help from AI)
-function parse_ode_system_manual(filename)
-    content = read(filename, String)
+function parse_ode_system_manual(ode_filename, constr_filename)
+    # Parse ODE file
+    ode_content = read(ode_filename, String)
     
-    lines = split(content, "\n")
-    eq_lines = String[]
-    in_eq = false
+    # Extract all Derivative expressions from ODE file
+    ode_rhs_list = String[]
     
-    for line in lines
-        if startswith(line, "[ Eq(")
-            in_eq = true
-        end
-        
-        if in_eq
-            push!(eq_lines, line)
-        end
-        
-        if endswith(line, "]") && in_eq
-            break
-        end
+    # Pattern to find each Derivative clause
+    # ode_pattern = r"Derivative\([^,]+,\s*t\)\s*,\s*(.*?)(?=\s*(?:,\s*Eq\(|\s*\]))"
+    ode_pattern = r"Derivative\([^,]+,\s*t\)\s*,\s*(.+?)\s*\)(?:,| \])"
+    
+    for m in eachmatch(ode_pattern, ode_content)
+        rhs = strip(m.captures[1])
+        # Remove any trailing closing parenthesis if present
+        rhs = replace(rhs, r"\s*\)\s*$" => "")
+        push!(ode_rhs_list, rhs)
     end
-
-    eq_text = join(eq_lines, "\n")
     
-    rhs_pattern = r"Derivative\([^,]+,\s*t\)\s*,\s*(.+?)\s*\)(?:,| \])"
-    rhs_matches = eachmatch(rhs_pattern, eq_text)
-    rhs_list = [strip(m.captures[1]) for m in rhs_matches]
+    # Parse constraints file
+    constr_content = read(constr_filename, String)
     
+    # Extract lhs expressions and create c_i parameters
+    constr_rhs_list = String[]
+    c_params = String[]
+    
+    # Pattern to match Eq(lhs, rhs) in constraints file
+    constr_pattern = r"Eq\(\s*(.+?)\s*,\s*(.+?)\s*\)"
+    
+    i = 1
+    for m in eachmatch(constr_pattern, constr_content)
+        lhs = strip(m.captures[1])
+        c_param = "c_$i"
+        push!(c_params, c_param)
+        # Create "lhs - c_i" expression
+        push!(constr_rhs_list, "($lhs) - $c_param")
+        i += 1
+    end
+    
+    # Combine both lists
+    rhs_list = vcat(ode_rhs_list, constr_rhs_list)
+    
+    # Extract variable names from both files
+    all_content = ode_content * " " * constr_content
     var_pattern = r"x\d+"
-    var_matches = eachmatch(var_pattern, eq_text)
+    var_matches = eachmatch(var_pattern, all_content)
     vars = unique([m.match for m in var_matches])
     x_vars = sort(vars, by=x -> parse(Int, match(r"x(\d+)", x).captures[1]))
     
+    # Extract parameter names from both files (including k parameters)
     param_pattern = r"k\d+"
-    param_matches = eachmatch(param_pattern, eq_text)
+    param_matches = eachmatch(param_pattern, all_content)
     params = unique([m.match for m in param_matches])
     params_sorted = sort(params, by=k -> parse(Int, match(r"k(\d+)", k).captures[1]))
     
-    return (String).(x_vars), (String).(params_sorted), (String).(rhs_list)
+    # Add c_i parameters to params_sorted
+    params_sorted = vcat(params_sorted, c_params)
+    
+    return x_vars, params_sorted, rhs_list
 end
 
 function create_steady_state(x_vars, params, rhs)
@@ -391,14 +416,27 @@ function create_steady_state(x_vars, params, rhs)
     end
     eval(poly_ring_expr)
 
-    eqns = [eval(Meta.parse(eqn)) for eqn in rhs]
+    eqns = [R(eval(Meta.parse(eqn))) for eqn in rhs]
     return eqns
 end
 
 function make_eci(steady_state_system)
     A, V = get_eci_data(steady_state_system)
+    A_red = reduce_to_linear_span(A)
     R = parent(first(steady_state_system))
     P = base_ring(R)
-    param_evals = rand(-100:100, ngens(P))
-    return A, [f(param_evals...) for f in V]
+    param_evals = rand(1:1000, ngens(P))
+    V_qq = [f(param_evals...) for f in V]
+    # rd = size(A_red, 1) - rank(matrix(QQ, V_qq))
+    # if rd > 0
+    #     println("adding $(rd) linear forms")
+    #     lforms = [sum(rand(1:1000, ngens(R)) .* gens(R)) + rand(-100:100) for _ in 1:rd]
+    #     ss_ext = vcat(steady_state_system, lforms)
+    #     A, V = get_eci_data(ss_ext)
+    #     A_red = reduce_to_linear_span(A)
+    #     V = rand(-100:100, size(A_red, 1), size(V, 1)) * V
+    #     V_qq = [f(param_evals...) for f in V]
+    # end
+    V_qq = rand(-100:100, size(A_red, 1), size(V_qq, 1)) * V_qq
+    return A_red, V_qq
 end
