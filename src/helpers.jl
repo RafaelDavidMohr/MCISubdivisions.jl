@@ -87,6 +87,21 @@ function real_root_count(ms::Vector{MixedCell}, A::Matrix{Int}, V::Matrix{QQFiel
     return sum([real_root_count(m, A, V) for m in ms])
 end
 
+function msolve_real_root_count(m::MixedCellInds, A::Matrix{Int}, V::Matrix{QQFieldElem})
+    R, x = polynomial_ring(QQ, ["x$i" for i in 1:size(A,1)])
+    monA(i) = prod(x .^ A[:, i])
+    mmat = Matrix(echelon_form(matrix(QQ, V)[:, vcat(m...)]))
+    eqns = QQMPolyRingElem[]
+    for inds in m
+        for l in 1:length(inds)-1
+            push!(eqns, sum([mmat[l, i] * monA(j) for (i, j) in enumerate(inds)]))
+        end
+    end
+    I = ideal(R, eqns)
+    I = saturation(I, ideal(R, [prod(gens(R))]))
+    return length(Oscar.real_solutions(I)[1])
+end
+
 function cayley_indices(m::MixedCell, j::Int)
     if j == length(m)
         return m.loc_inds[j]
@@ -305,7 +320,7 @@ function delete_mixed_cell!(wd::WalkData, m::MixedCell, rr_counter::RRCounter)
         end
     end
     delete!(wd.cells, m)
-    delete!(rr_counter.cnt, m)
+    delete!(rr_counter.cnt, m.inds)
 end
 
 function gather_mixed_cells(wd::WalkData, max_ind=0::Int)

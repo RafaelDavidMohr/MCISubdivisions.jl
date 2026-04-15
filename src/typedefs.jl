@@ -192,11 +192,11 @@ end
 struct RRCounter
     A::Matrix{Int}
     V::Matrix{QQFieldElem}
-    cnt::Dict{MixedCell, Int}
+    cnt::Dict{MixedCellInds, Int}
     target_rr_count::Int
 
     function RRCounter(A::Matrix{Int}, V::Matrix{QQFieldElem}, target_rr_count::Int)
-        return new(A, V, Dict{MixedCell, Int}(), target_rr_count)
+        return new(A, V, Dict{MixedCellInds, Int}(), target_rr_count)
     end
 end
 
@@ -208,8 +208,8 @@ function rr_count(rr_counter::RRCounter)
     return sum([rr_counter.cnt[m] for m in keys(rr_counter.cnt)])
 end
 
-function add_mixed_cell!(rr_counter::RRCounter, m::MixedCell)
-    rr_counter.cnt[m] = real_root_count(m, rr_counter.A, rr_counter.V)
+function add_mixed_cell!(rr_counter::RRCounter, m::MixedCellInds)
+    rr_counter.cnt[m] = msolve_real_root_count(m, rr_counter.A, rr_counter.V)
 end
 
 # --- ELimination --- #

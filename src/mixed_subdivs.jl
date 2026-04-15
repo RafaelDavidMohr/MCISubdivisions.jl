@@ -6,7 +6,7 @@ function walk_homotopy!(w::WalkData;
     trr = rr_counter.target_rr_count
 
     if trr >= 0
-        ms = gather_mixed_cells(w.M, w)
+        ms = gather_mixed_cells(w)
         for m in ms
             add_mixed_cell!(rr_counter, m)
         end
@@ -113,7 +113,7 @@ function walk_wall!(wd::WalkData, c::Hyperplane, rr_counter::RRCounter)
         new_mc = MixedCell(new_mc_inds, wd.M)
         compute_active_walls!(new_mc, wd.M, wd.cells, wd.walls, wd.p0, wd.p1, wd.t_curr)
         if rr_counter.target_rr_count >= 0
-            add_mixed_cell!(rr_counter, new_mc)
+            add_mixed_cell!(rr_counter, new_mc.inds)
         end
     end
 end

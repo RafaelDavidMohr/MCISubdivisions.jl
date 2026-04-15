@@ -7,7 +7,7 @@ R, (x, y, z) = QQ[:x, :y, :z]
 
 d = 4
 m = ideal(R, gens(R))
-f = sum([mon for i in 0:d for mon in gens(m^i)])
+f = sum([rand([-1,1])*mon for i in 0:d for mon in gens(m^i)])
 F = [f, x*derivative(f, x), x^2*derivative(derivative(f, x), x)]
 A, V = MCIS.get_eci_data(F)
 rand_mix = matrix(QQ, (QQ).(rand(-1000:1000, size(V, 1), size(V, 1))))
@@ -17,7 +17,7 @@ sum([MCIS.vol(m, A) for m in ms])
 
 function random_lift(l)
     a = randn(l)
-    b = [rationalize(x, tol = 0.01) for x in a]
+    b = [rationalize(x, tol = 0.1) for x in a]
     mult = lcm((denominator).(b))
     return (numerator).(mult * b)
 end
@@ -25,10 +25,16 @@ end
 t_cross = MCIS.zero(MCIS.DualNumber)
 p_new = MCIS.DualVector(random_lift(size(A, 2)))
 i = 1
+max_rr = 0
 while true
     println("sample $i")
     reached, t_cross, ms = with_logger(NullLogger()) do
         MCIS.deform_subdivision(A, V, ms, p, p_new, 24)
+    end
+    rr = sum([MCIS.msolve_real_root_count(m, A, V) for m in ms])
+    if rr > max_rr
+        max_rr = rr
+        println("$(max_rr) real roots after deformation")
     end
     if reached
         println("24 real roots!!")
