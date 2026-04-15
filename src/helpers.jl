@@ -49,11 +49,11 @@ function vol(m::MixedCellInds, A::Matrix{Int})
     return round(Int, abs(LinearAlgebra.det(lu)))
 end
 
-function real_root_count(m::MixedCell, A::Matrix{Int}, V::Matrix{QQFieldElem})
+function real_root_count(m::MixedCellInds, A::Matrix{Int}, V::Matrix{QQFieldElem})
     F = GF(2)
     n = size(A, 1)
-    ml = sum((length).(m.inds))
-    ev = matrix(F, vcat(A[:, vcat(m.inds...)], ones(Int, 1, ml)))
+    ml = sum((length).(m))
+    ev = matrix(F, vcat(A[:, vcat(m...)], ones(Int, 1, ml)))
     k = permutedims(Matrix(kernel(ev)))
     enc = size(k, 2)
     sol = try
@@ -70,12 +70,12 @@ function real_root_count(m::MixedCell, A::Matrix{Int}, V::Matrix{QQFieldElem})
     return length(result_set)
 end
 
-function sgn(m::MixedCell, V::Matrix{QQFieldElem})
+function sgn(m::MixedCellInds, V::Matrix{QQFieldElem})
     F = GF(2)
     sgns = eltype(F)[]
-    for (i, S) in enumerate(m.inds)
+    for (i, S) in enumerate(m)
         for j in S
-            V_submat = V[:, vcat([p == i ? [l for l in S if l != j] : m.inds[p][2:end] for p in 1:length(m.inds)]...)]
+            V_submat = V[:, vcat([p == i ? [l for l in S if l != j] : m[p][2:end] for p in 1:length(m)]...)]
             dt = det(matrix(QQ, V_submat))
             dt > 0 ? push!(sgns, F(1)) : push!(sgns, F(0))
         end
@@ -297,7 +297,8 @@ function rand_arr_ff(F::FqField, dims...)
 end
 
 function delete_mixed_cell!(wd::WalkData, m::MixedCell, rr_counter::RRCounter)
-    for c in keys(wd.walls)
+    for c in wd.cells[m]
+        !haskey(wd.walls, c) && continue
         filter!(((m0, i, j),) -> m != m0, wd.walls[c])
         if isempty(wd.walls[c])
             delete!(wd.walls, c)
@@ -309,9 +310,9 @@ end
 
 function gather_mixed_cells(wd::WalkData, max_ind=0::Int)
 
-    iszero(max_ind) && return [m.inds for m in wd.cells]
+    iszero(max_ind) && return [m.inds for m in keys(wd.cells)]
     result = MixedCellInds[]
-    for m in wd.cells
+    for m in keys(wd.cells)
         any(S -> any(i -> i > max_ind, S), m.inds) && continue
         push!(result, m.inds)
     end
@@ -319,11 +320,11 @@ function gather_mixed_cells(wd::WalkData, max_ind=0::Int)
     return result
 end
 
-function add_to_dict!(d::Dict{T, Set{S}}, k::T, v::S) where {T, S}
+function add_to_dict!(d::Dict{T, Vector{S}}, k::T, v::S) where {T, S}
     if haskey(d, k)
         push!(d[k], v)
     else
-        d[k] = Set([v])
+        d[k] = [v]
     end
 end
 
@@ -344,32 +345,34 @@ function get_A_disc_equations(A::Matrix{Int}, dehom=1)
     return fs
 end
 
+function specialize(F::Vector{<:MPolyRingElem}, choice_of_parameters::Vector{<:Union{Int, RingElem}})
+    Kax = parent(first(F))
+    Ka = coefficient_ring(Kax)
+    K = base_ring(Ka)
+    Kx, x = polynomial_ring(K, symbols(Kax))
+    phi = hom(Kax, Kx, c -> evaluate(c, choice_of_parameters), x)
+    return phi.(F)
+end
+
+# Functions to parse sage files from odebase.org
 function parse_ode_system_manual(ode_filename, constr_filename)
-    # Parse ODE file
     ode_content = read(ode_filename, String)
     
-    # Extract all Derivative expressions from ODE file
     ode_rhs_list = String[]
     
-    # Pattern to find each Derivative clause
-    # ode_pattern = r"Derivative\([^,]+,\s*t\)\s*,\s*(.*?)(?=\s*(?:,\s*Eq\(|\s*\]))"
     ode_pattern = r"Derivative\([^,]+,\s*t\)\s*,\s*(.+?)\s*\)(?:,| \])"
     
     for m in eachmatch(ode_pattern, ode_content)
         rhs = strip(m.captures[1])
-        # Remove any trailing closing parenthesis if present
         rhs = replace(rhs, r"\s*\)\s*$" => "")
         push!(ode_rhs_list, rhs)
     end
     
-    # Parse constraints file
     constr_content = read(constr_filename, String)
     
-    # Extract lhs expressions and create c_i parameters
     constr_rhs_list = String[]
     c_params = String[]
     
-    # Pattern to match Eq(lhs, rhs) in constraints file
     constr_pattern = r"Eq\(\s*(.+?)\s*,\s*(.+?)\s*\)"
     
     i = 1
@@ -377,28 +380,23 @@ function parse_ode_system_manual(ode_filename, constr_filename)
         lhs = strip(m.captures[1])
         c_param = "c_$i"
         push!(c_params, c_param)
-        # Create "lhs - c_i" expression
         push!(constr_rhs_list, "($lhs) - $c_param")
         i += 1
     end
     
-    # Combine both lists
     rhs_list = vcat(ode_rhs_list, constr_rhs_list)
     
-    # Extract variable names from both files
     all_content = ode_content * " " * constr_content
     var_pattern = r"x\d+"
     var_matches = eachmatch(var_pattern, all_content)
     vars = unique([m.match for m in var_matches])
     x_vars = sort(vars, by=x -> parse(Int, match(r"x(\d+)", x).captures[1]))
     
-    # Extract parameter names from both files (including k parameters)
     param_pattern = r"k\d+"
     param_matches = eachmatch(param_pattern, all_content)
     params = unique([m.match for m in param_matches])
     params_sorted = sort(params, by=k -> parse(Int, match(r"k(\d+)", k).captures[1]))
     
-    # Add c_i parameters to params_sorted
     params_sorted = vcat(params_sorted, c_params)
     
     return x_vars, params_sorted, rhs_list
@@ -427,16 +425,6 @@ function make_eci(steady_state_system)
     P = base_ring(R)
     param_evals = rand(1:1000, ngens(P))
     V_qq = [f(param_evals...) for f in V]
-    # rd = size(A_red, 1) - rank(matrix(QQ, V_qq))
-    # if rd > 0
-    #     println("adding $(rd) linear forms")
-    #     lforms = [sum(rand(1:1000, ngens(R)) .* gens(R)) + rand(-100:100) for _ in 1:rd]
-    #     ss_ext = vcat(steady_state_system, lforms)
-    #     A, V = get_eci_data(ss_ext)
-    #     A_red = reduce_to_linear_span(A)
-    #     V = rand(-100:100, size(A_red, 1), size(V, 1)) * V
-    #     V_qq = [f(param_evals...) for f in V]
-    # end
     V_qq = rand(-100:100, size(A_red, 1), size(V_qq, 1)) * V_qq
     return A_red, V_qq
 end

@@ -31,7 +31,6 @@ function walk_homotopy!(w::WalkData;
         end
         @info "intersection found"
         @info "crossing at $(t_cross)"
-        @info "$(length(w.walls[c_int])) mixed cells to flip"
         walk_wall!(w, c_int, rr_counter)
         if trr >= 0 && rr_count(rr_counter) == trr
             @info "target real root count $(rr_counter.target_rr_count) reached"
@@ -44,13 +43,13 @@ end
 
 function deform_subdivision(A::Matrix{Int}, V::Matrix{C},
                             ms::Vector{MixedCellInds}, p0::DualVector,
-                            p1::DualVector, target_rr_count::Int) where C
+                            p1::DualVector, target_rr_count::Int=-1) where C
 
     rr_counter = RRCounter(A, V, target_rr_count)
 
     M = MCI(V, A)
-    wd = WalkData(M, [MixedCell(m, M) for m in ms])
-    cnt_reached, t_cross = walk_homotopy!(wd, p0, p1, rr_counter = rr_counter)
+    wd = WalkData(M, [MixedCell(m, M) for m in ms], p0, p1)
+    cnt_reached, t_cross = walk_homotopy!(wd, rr_counter = rr_counter)
     return cnt_reached, t_cross, gather_mixed_cells(wd)
 end
 
@@ -104,7 +103,7 @@ function walk_wall!(wd::WalkData, c::Hyperplane, rr_counter::RRCounter)
     active_mc_data = wd.walls[c]
     delete!(wd.walls, c) 
     new_ms = Set{MixedCellInds}()
-    cnt = 0
+    @info "$(length(active_mc_data)) cells to flip"
     for (m, act_index, sgn) in active_mc_data
         delete_mixed_cell!(wd, m, rr_counter)
         mixed_cell_flip!(m, c, wd.M, act_index, sgn, new_ms)
@@ -112,8 +111,7 @@ function walk_wall!(wd::WalkData, c::Hyperplane, rr_counter::RRCounter)
     @info "$(length(new_ms)) new mixed cells"
     for new_mc_inds in new_ms
         new_mc = MixedCell(new_mc_inds, wd.M)
-        compute_active_walls!(new_mc, wd.M, wd.walls, wd.p0, wd.p1, wd.t_curr)
-        push!(wd.cells, new_mc)
+        compute_active_walls!(new_mc, wd.M, wd.cells, wd.walls, wd.p0, wd.p1, wd.t_curr)
         if rr_counter.target_rr_count >= 0
             add_mixed_cell!(rr_counter, new_mc)
         end
@@ -172,7 +170,8 @@ end
 
 function compute_active_walls!(m::MixedCell,
                                M::MCI,
-                               walls::Dict{Hyperplane, Set{Tuple{MixedCell, Int, Bool}}},
+                               cells::Dict{MixedCell, Vector{Hyperplane}},
+                               walls::Dict{Hyperplane, Vector{Tuple{MixedCell, Int, Bool}}},
                                p0::DualVector,
                                p1::DualVector,
                                t_cross::Union{Nothing, DualNumber})
@@ -194,6 +193,7 @@ function compute_active_walls!(m::MixedCell,
     d = Int(round(det(cayley_config_fac)))
     all_m_inds = vcat(m.inds...)
 
+    cells[m] = Hyperplane[]
     for i in 1:k
         apd = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
         for j in cayley_indices(m, i)
@@ -218,6 +218,7 @@ function compute_active_walls!(m::MixedCell,
             if !isnothing(t_cross) && (t_c == t_cross || lt_dual(t_c, t_cross))
                 continue
             end
+            push!(cells[m], c)
             sgn = signbit(partial_sum(m.inds[i], c))
             add_to_dict!(walls, c, (m, i, sgn))
         end

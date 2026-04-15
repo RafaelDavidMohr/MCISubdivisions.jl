@@ -54,5 +54,5 @@ system = vcat([steadyStateEq for (i, steadyStateEq) in enumerate(steadyStateEqs)
 # Make a choice of parameters
 number_of_parameters = ngens(coefficient_ring(parent(first(system))))
 #target_parameters = collect(1:number_of_parameters)
-target_parameters = rand(-100:100, number_of_parameters)
+target_parameters = rand(1:100, number_of_parameters)
 target_system = specialize(system, target_parameters)
