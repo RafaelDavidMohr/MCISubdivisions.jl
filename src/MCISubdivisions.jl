@@ -8,6 +8,7 @@ include("typedefs.jl")
 include("helpers.jl")
 include("mixed_subdivs.jl")
 include("elimination.jl")
+include("direct_alg.jl")
 
 export mixed_volume, mixed_subdivision, real_root_count, get_eliminant_polytope, get_A_disc_equations
 
