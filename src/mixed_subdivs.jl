@@ -134,16 +134,8 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int,
     
     Ss_new = Vector{Int}[]
     F = prime_field_V(M)
-    for (k, i) in enumerate(m.inds[act_index])
-        candidate_indices = vcat(m.inds[act_index][1:k-1], m.inds[act_index][k+1:end],
-                                 new_inds)
-        V_trunc_inds = vcat(candidate_indices,
-                            [idx[2:end] for idx in m.inds[1:act_index-1]]...)
-        V_trunc = M.V[:, V_trunc_inds]
-        K = kernel(matrix(F, V_trunc), side = :right)
-        @assert isone(size(K, 2))
-        cl = length(candidate_indices)
-        S_new = candidate_indices[findall(j -> !iszero(K[j, :]), 1:cl)]
+    for k in 1:length(m.inds[act_index])
+        S_new = exchange(M.V, m.inds, act_index, k, new_inds)
         if partial_sum_sign(S_new, c, sgn)
             push!(Ss_new, S_new)
         end
@@ -166,6 +158,19 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int,
             push!(new_ms, new_ms_inds)
         end
     end
+end
+
+function exchange(V::Matrix{C}, m::MixedCellInds, act_index::Int, k::Int, new_inds::Vector{Int}) where C
+    candidate_indices = vcat(m[act_index][1:k-1], m[act_index][k+1:end],
+                             new_inds)
+    V_trunc_inds = vcat(candidate_indices,
+                        [idx[2:end] for idx in m[1:act_index-1]]...)
+    V_trunc = V[:, V_trunc_inds]
+    F = parent(first(V))
+    K = kernel(matrix(F, V_trunc), side = :right)
+    @assert isone(size(K, 2))
+    cl = length(candidate_indices)
+    return candidate_indices[findall(j -> !iszero(K[j, :]), 1:cl)]
 end
 
 function compute_active_walls!(m::MixedCell,
