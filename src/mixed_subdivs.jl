@@ -218,6 +218,7 @@ function compute_active_walls!(m::MixedCell,
             if !isnothing(t_cross) && (t_c == t_cross || lt_dual(t_c, t_cross))
                 continue
             end
+            c.cross_val = t_c
             push!(cells[m], c)
             sgn = signbit(partial_sum(m.inds[i], c))
             add_to_dict!(walls, c, (m, i, sgn))

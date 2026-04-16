@@ -228,7 +228,8 @@ function first_intersection!(w::WalkData)
 
     for c in hyperplanes
 
-        t_c = crossing_val(l0, l1, c)
+        # t_c = crossing_val(l0, l1, c)
+        t_c = c.cross_val
         # check if crossing between last t and 1
         if !isnothing(t_curr) && lt_dual(t_c, t_curr)
             push!(to_del, c)
