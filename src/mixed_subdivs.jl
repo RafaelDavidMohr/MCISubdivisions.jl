@@ -134,7 +134,8 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int,
     
     Ss_new = Vector{Int}[]
     F = prime_field_V(M)
-    for k in 1:length(m.inds[act_index])
+    for (k, i) in enumerate(m.inds[act_index])
+        iszero(c.cfs[i]) && continue # correct?
         S_new = exchange(M.V, m.inds, act_index, k, new_inds)
         if partial_sum_sign(S_new, c, sgn)
             push!(Ss_new, S_new)
@@ -233,14 +234,16 @@ end
 
 # --- Mixed cell data --- #
 
-function outer_normal_vector(A::Matrix{Int}, m::MixedCell,
+function outer_normal_vector(A::Matrix{Int}, m::MixedCellInds,
                              d::Vector{C}) where C
 
     A_lifted = vcat(A, transpose(d))
-    K = normal_space(A_lifted, m.inds)
+    K = normal_space(A_lifted, m)
     @assert isone(size(K, 2)) "mixed cell does not lift to a hyperplane"
-    K *= K[end, 1]^(-1)
-    return K[1:n, 1]
+    v = K[:, 1]
+    v *= v[end]^(-1)
+    n = length(v)
+    return v[1:n-1]
 end
 
 function outer_normal_vector(M::MCI, m::MixedCell,
