@@ -190,7 +190,7 @@ end
 # --- circuits --- #
 
 function nz_inds(c::Hyperplane)
-    return c.nzinds
+    return findall(!iszero, c.cfs)
 end
 
 function partial_sum(inds::Vector{Int}, c::Hyperplane)
@@ -203,15 +203,11 @@ function partial_sum_sign(inds::Vector{Int}, c::Hyperplane, sgn::Bool)
 end
 
 function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
-    res = 0
-    for i in nz_inds(c)
-        res += v[i] * c.cfs[i]
-    end
-    return res
+    return (Int).(dot(v, c.cfs))
 end
 
 function LinearAlgebra.dot(l::DualVector, c::Hyperplane)
-    return DualNumber(round(dot(l.r, c)), round(dot(l.eps, c)))
+    return DualNumber(dot(l.r, c), dot(l.eps, c))
 end
 
 # --- homotopy paths --- #
@@ -286,7 +282,7 @@ function forgetful_lift(A_size::Int, forget_inds::Vector{Int}, d_eps::Vector{Int
     for i in 1:A_size
         if i in forget_inds
             d[i] = 0
-            d_eps_new[i] = rand(-10000:10000)
+            d_eps_new[i] = 0
         else
             d[i] = 1
             d_eps_new[i] = d_eps[cnt]

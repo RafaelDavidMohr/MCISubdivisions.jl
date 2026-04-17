@@ -3,6 +3,7 @@ module MCISubdivisions
 using Oscar
 using LinearAlgebra
 using Logging
+using SparseArrays
 
 include("typedefs.jl")
 include("helpers.jl")
@@ -33,9 +34,10 @@ function mixed_volume(A::Matrix{Int}, V::Matrix{C}) where C
     return sum([vol(m, A) for m in cells])
 end
 
-function mixed_subdivision(A::Matrix{Int}, V::Matrix{C}) where C
+function mixed_subdivision(A::Matrix{Int}, V::Matrix{C};
+                           d::Vector{Int}=rand(-10000:10000, size(A, 2))) where C
     Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
-    wd = starting_system(A, Vp)
+    wd = starting_system(A, Vp, d)
 
     walk_homotopy!(wd)
 

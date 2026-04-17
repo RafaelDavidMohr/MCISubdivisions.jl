@@ -53,7 +53,7 @@ function deform_subdivision(A::Matrix{Int}, V::Matrix{C},
     return cnt_reached, t_cross, gather_mixed_cells(wd)
 end
 
-function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem})
+function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem}, d::Vector{Int})
     n = size(A, 1)
     A_size = size(A, 2)
     no_multiset = allunique(i -> A[:, i], 1:A_size)
@@ -68,14 +68,15 @@ function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem})
     V_start = rand_arr_ff(F, n, A_size)
     init_mc = [[col_inds[c]] for c in maximal_cells(sd)]
 
-    return homotopy(A, V, A_start, V_start, init_mc, p_start)
+    return homotopy(A, V, A_start, V_start, init_mc, p_start, d)
 end
 
 # works only if conv(A_target) ⊆ conv(A_start)
 function homotopy(A_target::Matrix{Int}, V_target::Matrix{FqFieldElem},
                   A_start::Matrix{Int}, V_start::Matrix{FqFieldElem},
                   ms_start::Vector{MixedCellInds},
-                  p_start::Vector{Int})
+                  p_start::Vector{Int},
+                  p_target::Vector{Int})
 
     A_ext = hcat(A_target, A_start)
     V_ext = hcat(V_target, V_start)
@@ -87,7 +88,7 @@ function homotopy(A_target::Matrix{Int}, V_target::Matrix{FqFieldElem},
     # set up path
     A_ext_size = size(A_ext, 2)
     p0 = forgetful_lift(A_ext_size, collect(1:A_size), p_start)
-    p1 = forgetful_lift(A_ext_size, collect(A_size+1:A_ext_size))
+    p1 = forgetful_lift(A_ext_size, collect(A_size+1:A_ext_size), p_target)
 
     # initial mixed cells
     init_mc = [MixedCell([ci .+ A_size for ci in c], M) for c in ms_start]
@@ -102,28 +103,27 @@ end
 function walk_wall!(wd::WalkData, c::Hyperplane, rr_counter::RRCounter)
     active_mc_data = wd.walls[c]
     delete!(wd.walls, c) 
-    new_ms = Set{MixedCellInds}()
+    new_ms_inds = Set{MixedCellInds}()
+    new_ms = MixedCell[]
     @info "$(length(active_mc_data)) cells to flip"
     for (m, act_index, sgn) in active_mc_data
         delete_mixed_cell!(wd, m, rr_counter)
-        mixed_cell_flip!(m, c, wd.M, act_index, sgn, new_ms)
+        mixed_cell_flip!(m, c, wd, act_index, sgn, new_ms_inds, new_ms)
     end
-    @info "$(length(new_ms)) new mixed cells"
-    for new_mc_inds in new_ms
-        new_mc = MixedCell(new_mc_inds, wd.M)
-        compute_active_walls!(new_mc, wd.M, wd.cells, wd.walls, wd.p0, wd.p1, wd.t_curr)
-        if rr_counter.target_rr_count >= 0
+    @info "$(length(new_ms_inds)) new mixed cells"
+    if rr_counter.target_rr_count >= 0
+        for new_mc in new_ms
             add_mixed_cell!(rr_counter, new_mc.inds)
         end
     end
 end
 
-function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int,
+function mixed_cell_flip!(m::MixedCell, c::Hyperplane, wd::WalkData, act_index::Int,
                           sgn::Bool,
-                          new_ms::Set{MixedCellInds})
+                          new_ms_inds::Set{MixedCellInds},
+                          new_ms::Vector{MixedCell})
 
     # indices from which new mixed cell component can come
-    # todo: if this doesnt work check if this is correct
     new_inds = setdiff(nz_inds(c), vcat(m.inds...))
     is_exchange = !isempty(new_inds)
     if is_exchange
@@ -131,6 +131,8 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int,
     else
         new_inds = m.inds[act_index+1]
     end
+
+    M = wd.M
     
     Ss_new = Vector{Int}[]
     F = prime_field_V(M)
@@ -147,16 +149,21 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, M::MCI, act_index::Int,
         sort!(S_new)
         S_new_next = sort(setdiff(inds, S_new))
         next_ind = is_exchange ? act_index + 1 : act_index + 2
-        new_ms_inds = if length(S_new_next) > 1
+        # is_simple_exchange = is_exchange && length(S_new_next) <= 1
+        # is_simple_exchange && println("simple exchange")
+        new_m_inds = if length(S_new_next) > 1
             [m.inds[1:act_index-1]..., S_new, S_new_next,
              m.inds[next_ind:end]...]
         else
             [m.inds[1:act_index-1]..., S_new,
              m.inds[next_ind:end]...]
         end
-        new_ms_inds in new_ms && continue
-        if is_affine_independent(M.A, new_ms_inds)
-            push!(new_ms, new_ms_inds)
+        new_m_inds in new_ms_inds && continue
+        if is_affine_independent(M.A, new_m_inds)
+            new_mc = MixedCell(new_m_inds, M)
+            push!(new_ms, new_mc)
+            compute_active_walls!(new_mc, M, wd.cells, wd.walls, wd.p0, wd.p1, wd.t_curr)
+            push!(new_ms_inds, new_m_inds)
         end
     end
 end

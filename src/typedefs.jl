@@ -85,15 +85,14 @@ end
 # --- Circuit --- #
 
 mutable struct Hyperplane
-    cfs::Vector{Int}
-    nzinds::Vector{Int}
+    cfs::SparseVector{Int, Int}
     cross_val::DualNumber
 
     function Hyperplane(cfs::Vector{Int})
         nzinds = findall(!iszero, cfs)
         ni = first(nzinds)
         sb = signbit(cfs[ni])
-        return sb ? new(-cfs, nzinds, zero(DualNumber)) : new(cfs, nzinds, zero(DualNumber))
+        return sb ? new(-sparse(cfs), zero(DualNumber)) : new(sparse(cfs), zero(DualNumber))
    end
 end
 

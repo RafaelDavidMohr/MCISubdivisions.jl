@@ -95,7 +95,8 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
 
     V_ext = hcat(E.V, E.V)
     wd = homotopy(A_target, V_ext, A_start, V_ext,
-                  E.current_ms, E.current_lift)
+                  E.current_ms, E.current_lift,
+                  rand(-1000:1000, size(A_target, 2)))
     with_logger(NullLogger()) do
         walk_homotopy!(wd)
     end
