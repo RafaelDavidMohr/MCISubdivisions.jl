@@ -62,8 +62,20 @@ function Base.:(-)(a::DualNumber, b::DualNumber)
     return DualNumber(a.r - b.r, a.eps - b.eps)
 end
 
+function Base.:(-)(a::DualNumber)
+    return DualNumber(-a.r, -a.eps)
+end
+
 function Base.:(*)(a::DualNumber, b::DualNumber)
     return DualNumber(a.r*b.r, a.r*b.eps + a.eps*b.r)
+end
+
+function Base.:(*)(a::Int, b::DualNumber)
+    return DualNumber(a*b.r, a*b.eps)
+end
+
+function Base.:(/)(a::DualNumber, b::Int)
+    return DualNumber(a.r / b, a.eps / b)
 end
 
 function Base.inv(a::DualNumber)
@@ -82,18 +94,57 @@ function lt_dual(a::DualNumber, b::DualNumber)
     end
 end
 
+# --- Lift --- #
+
+struct DualVector
+    r::Vector{Int}
+    eps::Vector{Int}
+end
+
+function DualVector(r::Vector{Int})
+    l = length(r)
+    return DualVector(r, rand(-10000:10000, l))
+end
+
+function test_vector(l::DualVector; rat=10000)
+    return rat*l.r + l.eps
+end
+
 # --- Circuit --- #
 
 mutable struct Hyperplane
     cfs::SparseVector{Int, Int}
+    dot0::DualNumber
+    dot1::DualNumber
     cross_val::DualNumber
 
-    function Hyperplane(cfs::Vector{Int})
+    function Hyperplane(cfs::SparseVector{Int, Int}, dot0::DualNumber, dot1::DualNumber)
         nzinds = findall(!iszero, cfs)
+        g = gcd(cfs[nzinds])
         ni = first(nzinds)
+        if !isone(g)
+            cfs = cfs .÷ g
+            dot0 = dot0 / g
+            dot1 = dot1 / g
+        end
         sb = signbit(cfs[ni])
-        return sb ? new(-sparse(cfs), zero(DualNumber)) : new(sparse(cfs), zero(DualNumber))
+        if sb
+            cfs = -cfs
+            dot0 = -dot0
+            dot1 = -dot1
+        end
+        return new(cfs, dot0, dot1, cross_val_from_dp(dot0, dot1))
    end
+end
+
+function Hyperplane(cfs::SparseVector{Int, Int}, p0::DualVector, p1::DualVector)
+    dot0 = dot(p0, cfs)
+    dot1 = dot(p1, cfs)
+    return Hyperplane(cfs, dot0, dot1)
+end
+
+function Hyperplane(cfs::Vector{Int}, p0::DualVector, p1::DualVector)
+    return Hyperplane(sparse(cfs), p0, p1)
 end
 
 function Base.length(c::Hyperplane)
@@ -145,22 +196,6 @@ function rank!(M::MCI, inds::Vector{Int})
         M.rank_cache[inds] = rk
         rk
     end
-end
-
-# --- Lift --- #
-
-struct DualVector
-    r::Vector{Int}
-    eps::Vector{Int}
-end
-
-function DualVector(r::Vector{Int})
-    l = length(r)
-    return DualVector(r, rand(-10000:10000, l))
-end
-
-function test_vector(l::DualVector; rat=10000)
-    return rat*l.r + l.eps
 end
 
 # --- WalkData --- # 

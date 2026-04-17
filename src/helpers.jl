@@ -202,11 +202,11 @@ function partial_sum_sign(inds::Vector{Int}, c::Hyperplane, sgn::Bool)
     return res != 0 && (sgn ? res > 0 : res < 0) # TODO: check if 0 is allowed here
 end
 
-function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
-    return (Int).(dot(v, c.cfs))
-end
+# function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
+#     return (Int).(dot(v, c.cfs))
+# end
 
-function LinearAlgebra.dot(l::DualVector, c::Hyperplane)
+function LinearAlgebra.dot(l::DualVector, c::SparseVector{Int, Int})
     return DualNumber(dot(l.r, c), dot(l.eps, c))
 end
 
@@ -247,9 +247,13 @@ function first_intersection!(w::WalkData)
     return best_h, best_t
 end
 
-function crossing_val(l0::DualVector, l1::DualVector, c::Hyperplane)
+function crossing_val(l0::DualVector, l1::DualVector, c::SparseVector{Int, Int})
     l0d = dot(l0, c)
     l1d = dot(l1, c)
+    return cross_val_from_dp(l0d, l1d)
+end
+
+function cross_val_from_dp(l0d::DualNumber, l1d::DualNumber)
     denom = l0d - l1d
 
     if iszero(l0d.r) && iszero(l1d.r)
@@ -309,15 +313,25 @@ function rand_arr_ff(F::FqField, dims...)
 end
 
 function delete_mixed_cell!(wd::WalkData, m::MixedCell, rr_counter::RRCounter)
+    rtrn = Tuple{Hyperplane, Int}[]
     for c in wd.cells[m]
         !haskey(wd.walls, c) && continue
-        filter!(((m0, i, j),) -> m != m0, wd.walls[c])
+        del = 0
+        for (l, (m0, i, sgn)) in enumerate(wd.walls[c])
+            if m0 == m
+                push!(rtrn, (c, i))
+                del = l
+                break
+            end
+        end
+        deleteat!(wd.walls[c], del)
         if isempty(wd.walls[c])
             delete!(wd.walls, c)
         end
     end
     delete!(wd.cells, m)
     delete!(rr_counter.cnt, m.inds)
+    return rtrn
 end
 
 function gather_mixed_cells(wd::WalkData, max_ind=0::Int)
@@ -334,7 +348,9 @@ end
 
 function add_to_dict!(d::Dict{T, Vector{S}}, k::T, v::S) where {T, S}
     if haskey(d, k)
-        push!(d[k], v)
+        if !(v in d[k])
+            push!(d[k], v)
+        end
     else
         d[k] = [v]
     end

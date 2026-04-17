@@ -107,8 +107,8 @@ function walk_wall!(wd::WalkData, c::Hyperplane, rr_counter::RRCounter)
     new_ms = MixedCell[]
     @info "$(length(active_mc_data)) cells to flip"
     for (m, act_index, sgn) in active_mc_data
-        delete_mixed_cell!(wd, m, rr_counter)
-        mixed_cell_flip!(m, c, wd, act_index, sgn, new_ms_inds, new_ms)
+        m_circuits = delete_mixed_cell!(wd, m, rr_counter)
+        mixed_cell_flip!(m, c, wd, act_index, sgn, m_circuits, new_ms_inds, new_ms)
     end
     @info "$(length(new_ms_inds)) new mixed cells"
     if rr_counter.target_rr_count >= 0
@@ -118,8 +118,10 @@ function walk_wall!(wd::WalkData, c::Hyperplane, rr_counter::RRCounter)
     end
 end
 
-function mixed_cell_flip!(m::MixedCell, c::Hyperplane, wd::WalkData, act_index::Int,
+function mixed_cell_flip!(m::MixedCell, c::Hyperplane, wd::WalkData,
+                          act_index::Int,
                           sgn::Bool,
+                          m_circuits::Vector{Tuple{Hyperplane, Int}},
                           new_ms_inds::Set{MixedCellInds},
                           new_ms::Vector{MixedCell})
 
@@ -134,23 +136,21 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, wd::WalkData, act_index::
 
     M = wd.M
     
-    Ss_new = Vector{Int}[]
+    Ss_new = Tuple{Int, Vector{Int}}[]
     F = prime_field_V(M)
     for (k, i) in enumerate(m.inds[act_index])
         iszero(c.cfs[i]) && continue # correct?
         S_new = exchange(M.V, m.inds, act_index, k, new_inds)
         if partial_sum_sign(S_new, c, sgn)
-            push!(Ss_new, S_new)
+            push!(Ss_new, (k, S_new))
         end
     end
 
     inds = vcat(m.inds[act_index], sort(new_inds))
-    for S_new in Ss_new
+    for (k, S_new) in Ss_new
         sort!(S_new)
         S_new_next = sort(setdiff(inds, S_new))
         next_ind = is_exchange ? act_index + 1 : act_index + 2
-        # is_simple_exchange = is_exchange && length(S_new_next) <= 1
-        # is_simple_exchange && println("simple exchange")
         new_m_inds = if length(S_new_next) > 1
             [m.inds[1:act_index-1]..., S_new, S_new_next,
              m.inds[next_ind:end]...]
@@ -160,9 +160,17 @@ function mixed_cell_flip!(m::MixedCell, c::Hyperplane, wd::WalkData, act_index::
         end
         new_m_inds in new_ms_inds && continue
         if is_affine_independent(M.A, new_m_inds)
-            new_mc = MixedCell(new_m_inds, M)
+            is_simple_exchange = is_exchange && length(S_new_next) <= 1
+            new_mc = if is_simple_exchange
+                new_ind = first(new_inds)
+                new_cell_simple_exchange!(m, act_index, k, new_ind,
+                                          new_m_inds, wd, c, m_circuits)
+            else
+                new_mc = MixedCell(new_m_inds, M)
+                compute_active_walls!(new_mc, M, wd.cells, wd.walls, wd.p0, wd.p1, wd.t_curr)
+                new_mc
+            end
             push!(new_ms, new_mc)
-            compute_active_walls!(new_mc, M, wd.cells, wd.walls, wd.p0, wd.p1, wd.t_curr)
             push!(new_ms_inds, new_m_inds)
         end
     end
@@ -179,6 +187,36 @@ function exchange(V::Matrix{C}, m::MixedCellInds, act_index::Int, k::Int, new_in
     @assert isone(size(K, 2))
     cl = length(candidate_indices)
     return candidate_indices[findall(j -> !iszero(K[j, :]), 1:cl)]
+end
+
+function new_cell_simple_exchange!(m::MixedCell, act_index::Int, k::Int, # position in mixed cell
+                                   new_ind::Int,
+                                   new_m_inds::Vector{Vector{Int}},
+                                   wd::WalkData, c::Hyperplane,
+                                   m_circuits::Vector{Tuple{Hyperplane, Int}})
+
+    ei = m.inds[act_index][k]
+    new_loc_inds = sort(vcat(setdiff(m.loc_inds[act_index], [new_ind]), [ei]))
+    
+    new_m = MixedCell(new_m_inds, [i == act_index ? new_loc_inds : m.loc_inds[i] for i in 1:length(m.inds)])
+
+    wd.cells[new_m] = Hyperplane[]
+    c_cfs = c.cfs
+    for (co, ai) in m_circuits
+        co == c && continue
+        new_c = if iszero(co.cfs[ei])
+            co
+        else
+            co_cfs = co.cfs
+            l = lcm(c_cfs[ei], co_cfs[ei])
+            l1 = div(l, co_cfs[ei]) 
+            l2 = div(l, c_cfs[ei]) # should always be ≠ 0
+            Hyperplane(l1*co_cfs - l2*c_cfs, l1*co.dot0 - l2*c.dot0, l1*co.dot1 - l2*c.dot1)
+        end
+        add_hyperplane!(new_m, new_c, ai, wd.cells, wd.walls, wd.t_curr)
+    end
+
+    return new_m
 end
 
 function compute_active_walls!(m::MixedCell,
@@ -225,17 +263,31 @@ function compute_active_walls!(m::MixedCell,
                 g = gcd(c_cfs)
                 c_cfs = [div(cf, g) for cf in c_cfs]
             end
-            c = Hyperplane(c_cfs)
-            t_c = crossing_val(p0, p1, c)
-            (lt_dual(t_c, zero(DualNumber)) || lt_dual(one(DualNumber), t_c)) && continue
-            if !isnothing(t_cross) && (t_c == t_cross || lt_dual(t_c, t_cross))
-                continue
-            end
-            c.cross_val = t_c
-            push!(cells[m], c)
-            sgn = signbit(partial_sum(m.inds[i], c))
-            add_to_dict!(walls, c, (m, i, sgn))
+            c = Hyperplane(c_cfs, p0, p1)
+            add_hyperplane!(m, c, i, cells, walls, t_cross)
         end
+    end
+end
+
+function add_hyperplane!(m::MixedCell, c::Hyperplane,
+                         i::Int,
+                         cells::Dict{MixedCell, Vector{Hyperplane}},
+                         walls::Dict{Hyperplane, Vector{Tuple{MixedCell, Int, Bool}}},
+                         t_cross::Union{Nothing, DualNumber})
+
+    t_c = c.cross_val
+    (lt_dual(t_c, zero(DualNumber)) || lt_dual(one(DualNumber), t_c)) && return
+    if !isnothing(t_cross) && (t_c == t_cross || lt_dual(t_c, t_cross))
+        return
+    end
+    push!(cells[m], c)
+    sgn = signbit(partial_sum(m.inds[i], c))
+    if haskey(walls, c)
+        if all(mtp -> mtp[1] != m, walls[c])
+            push!(walls[c], (m, i, sgn))
+        end
+    else
+        walls[c] = [(m, i, sgn)]
     end
 end
 
