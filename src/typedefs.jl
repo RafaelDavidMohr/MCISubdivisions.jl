@@ -83,7 +83,7 @@ function Base.inv(a::DualNumber)
     return DualNumber(a.r^(-1), -(a.eps*a.r^(-2)))
 end
 
-function lt_dual(a::DualNumber, b::DualNumber)
+function Base.isless(a::DualNumber, b::DualNumber)
 
     if a.r != b.r
         return a.r < b.r
@@ -110,54 +110,22 @@ function test_vector(l::DualVector; rat=10000)
     return rat*l.r + l.eps
 end
 
-# --- Circuit --- #
+# --- Hyperplane --- #
 
-mutable struct Hyperplane
+struct Hyperplane
     cfs::SparseVector{Int, Int}
     dot0::DualNumber
     dot1::DualNumber
-    cross_val::DualNumber
-
-    function Hyperplane(cfs::SparseVector{Int, Int}, dot0::DualNumber, dot1::DualNumber)
-        nzinds = findall(!iszero, cfs)
-        g = gcd(cfs[nzinds])
-        ni = first(nzinds)
-        if !isone(g)
-            cfs = cfs .÷ g
-            dot0 = dot0 / g
-            dot1 = dot1 / g
-        end
-        sb = signbit(cfs[ni])
-        if sb
-            cfs = -cfs
-            dot0 = -dot0
-            dot1 = -dot1
-        end
-        return new(cfs, dot0, dot1, cross_val_from_dp(dot0, dot1))
-   end
-end
-
-function Hyperplane(cfs::SparseVector{Int, Int}, p0::DualVector, p1::DualVector)
-    dot0 = dot(p0, cfs)
-    dot1 = dot(p1, cfs)
-    return Hyperplane(cfs, dot0, dot1)
-end
-
-function Hyperplane(cfs::Vector{Int}, p0::DualVector, p1::DualVector)
-    return Hyperplane(sparse(cfs), p0, p1)
-end
-
-function Base.length(c::Hyperplane)
-    return length(c.cfs)
+    act_index::Int
+    sgn::Bool
+    exchange_index::Int
 end
 
 function Base.:(==)(c1::Hyperplane, c2::Hyperplane)
-    return c1.cfs == c2.cfs
+    c1.cfs == c2.cfs
 end
 
-function Base.hash(c::Hyperplane, h::UInt)
-    return hash(c.cfs, h)
-end
+is_exchange(c::Hyperplane) = !iszero(c.exchange_index)
 
 # --- MCI --- #
 
@@ -198,15 +166,34 @@ function rank!(M::MCI, inds::Vector{Int})
     end
 end
 
+# --- CellTable --- #
+
+struct CellTable
+    cell::MixedCell
+    walls::Vector{Hyperplane}
+    i_min::Int
+end
+
+function CellTable(m::MixedCell,
+                   M::MCI,
+                   p0::DualVector,
+                   p1::DualVector,
+                   t_curr::DualNumber=zero(DualNumber))
+
+    walls, i_min = compute_active_walls!(m, M, p0, p1, t_curr)
+    return CellTable(m, walls, dopts, i_min)
+end
+
+is_finished(mtbl::CellTable) = isempty(mtbl.walls)
+
 # --- WalkData --- # 
 
 mutable struct WalkData
     M::MCI
-    cells::Dict{MixedCell, Vector{Hyperplane}}
-    walls::Dict{Hyperplane, Vector{Tuple{MixedCell, Int, Bool}}}
+    cells::Vector{CellTable}
+    finished_cells::Set{MixedCellInds}
     p0::DualVector
     p1::DualVector
-    t_curr::Union{Nothing, DualNumber}
 end
 
 function WalkData(M::MCI,
@@ -214,37 +201,8 @@ function WalkData(M::MCI,
                   p0::DualVector,
                   p1::DualVector)
 
-    cells = Dict{MixedCell, Vector{Hyperplane}}()
-    walls = Dict{Hyperplane, Vector{Tuple{MixedCell, Int, Bool}}}()
-    for m in initial_mixed_cells
-        compute_active_walls!(m, M, cells, walls, p0, p1, nothing)
-    end
-    return WalkData(M, cells, walls, p0, p1, nothing)
-end
-
-# --- RRCounter (for convenience) --- #
-
-struct RRCounter
-    A::Matrix{Int}
-    V::Matrix{QQFieldElem}
-    cnt::Dict{MixedCellInds, Int}
-    target_rr_count::Int
-
-    function RRCounter(A::Matrix{Int}, V::Matrix{QQFieldElem}, target_rr_count::Int)
-        return new(A, V, Dict{MixedCellInds, Int}(), target_rr_count)
-    end
-end
-
-function empty_rr_counter()
-    return RRCounter(Matrix{Int}(undef, 0, 0), Matrix{QQFieldElem}(undef, 0, 0), -1)
-end
-
-function rr_count(rr_counter::RRCounter)
-    return sum([rr_counter.cnt[m] for m in keys(rr_counter.cnt)])
-end
-
-function add_mixed_cell!(rr_counter::RRCounter, m::MixedCellInds)
-    rr_counter.cnt[m] = msolve_real_root_count(m, rr_counter.A, rr_counter.V)
+    cells = [CellTable(m, M, p0, p1) for m in initial_mixed_cells]
+    return WalkData(M, cells, Set{MixedCellInds}(), p0, p1)
 end
 
 # --- ELimination --- #

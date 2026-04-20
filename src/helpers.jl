@@ -49,45 +49,8 @@ function vol(m::MixedCellInds, A::Matrix{Int})
     return round(Int, abs(LinearAlgebra.det(lu)))
 end
 
+# naive computation using msolve
 function real_root_count(m::MixedCellInds, A::Matrix{Int}, V::Matrix{QQFieldElem})
-    F = GF(2)
-    n = size(A, 1)
-    ml = sum((length).(m))
-    ev = matrix(F, vcat(A[:, vcat(m...)], ones(Int, 1, ml)))
-    k = permutedims(Matrix(kernel(ev)))
-    enc = size(k, 2)
-    sol = try
-        solve(ev, sgn(m, V))
-    catch ArgumentError
-        return 0
-    end
-    size(k, 2) == 0 && return 1
-    result_set = Set{Vector{FqFieldElem}}()
-    for i in 0:(2^enc -1)
-        new_sol = sol + k*digits(i, base=2, pad=enc)
-        push!(result_set, new_sol[1:n])
-    end
-    return length(result_set)
-end
-
-function sgn(m::MixedCellInds, V::Matrix{QQFieldElem})
-    F = GF(2)
-    sgns = eltype(F)[]
-    for (i, S) in enumerate(m)
-        for j in S
-            V_submat = V[:, vcat([p == i ? [l for l in S if l != j] : m[p][2:end] for p in 1:length(m)]...)]
-            dt = det(matrix(QQ, V_submat))
-            dt > 0 ? push!(sgns, F(1)) : push!(sgns, F(0))
-        end
-    end
-    return sgns
-end
-
-function real_root_count(ms::Vector{MixedCell}, A::Matrix{Int}, V::Matrix{QQFieldElem})
-    return sum([real_root_count(m, A, V) for m in ms])
-end
-
-function msolve_real_root_count(m::MixedCellInds, A::Matrix{Int}, V::Matrix{QQFieldElem})
     R, x = polynomial_ring(QQ, ["x$i" for i in 1:size(A,1)])
     monA(i) = prod(x .^ A[:, i])
     mmat = Matrix(echelon_form(matrix(QQ, V)[:, vcat(m...)]))
@@ -189,68 +152,29 @@ end
 
 # --- circuits --- #
 
-function nz_inds(c::Hyperplane)
-    return findall(!iszero, c.cfs)
-end
-
 function partial_sum(inds::Vector{Int}, c::Hyperplane)
     return sum(c.cfs[inds])
 end
 
-function partial_sum_sign(inds::Vector{Int}, c::Hyperplane, sgn::Bool)
+function partial_sum_sign(inds::Vector{Int}, c::Hyperplane)
     res = partial_sum(inds, c)
-    return res != 0 && (sgn ? res > 0 : res < 0) # TODO: check if 0 is allowed here
+    return res != 0 && (c.sgn ? res > 0 : res < 0) # TODO: check if 0 is allowed here
 end
 
-# function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
-#     return (Int).(dot(v, c.cfs))
-# end
+function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
+    return (Int).(dot(v, c.cfs))
+end
 
-function LinearAlgebra.dot(l::DualVector, c::SparseVector{Int, Int})
+function LinearAlgebra.dot(l::DualVector, c::Hyperplane)
     return DualNumber(dot(l.r, c), dot(l.eps, c))
 end
 
 # --- homotopy paths --- #
     
-function first_intersection!(w::WalkData)
-
-    best_t = nothing
-    best_h = nothing
-
-    l0, l1 = w.p0, w.p1
-    hyperplanes = keys(w.walls)
-    to_del = Hyperplane[]
-    t_curr = w.t_curr
-
-    for c in hyperplanes
-
-        # t_c = crossing_val(l0, l1, c)
-        t_c = c.cross_val
-        # check if crossing between last t and 1
-        if !isnothing(t_curr) && lt_dual(t_c, t_curr)
-            push!(to_del, c)
-            continue
-        end
-
-        if isnothing(best_h) || lt_dual(t_c, best_t)
-            best_t = t_c
-            best_h = c
-        end
-    end
-
-    for c in to_del
-        delete!(w.walls, c)
-    end
-
-    w.t_curr = best_t
-
-    return best_h, best_t
-end
-
 function crossing_val(l0::DualVector, l1::DualVector, c::SparseVector{Int, Int})
     l0d = dot(l0, c)
     l1d = dot(l1, c)
-    return cross_val_from_dp(l0d, l1d)
+    return l0d, l1d, cross_val_from_dp(l0d, l1d)
 end
 
 function cross_val_from_dp(l0d::DualNumber, l1d::DualNumber)
@@ -312,48 +236,16 @@ function rand_arr_ff(F::FqField, dims...)
     return (F).(rand(0:characteristic(F)-1, dims...))
 end
 
-function delete_mixed_cell!(wd::WalkData, m::MixedCell, rr_counter::RRCounter)
-    rtrn = Tuple{Hyperplane, Int}[]
-    for c in wd.cells[m]
-        !haskey(wd.walls, c) && continue
-        del = 0
-        for (l, (m0, i, sgn)) in enumerate(wd.walls[c])
-            if m0 == m
-                push!(rtrn, (c, i))
-                del = l
-                break
-            end
-        end
-        deleteat!(wd.walls[c], del)
-        if isempty(wd.walls[c])
-            delete!(wd.walls, c)
-        end
-    end
-    delete!(wd.cells, m)
-    delete!(rr_counter.cnt, m.inds)
-    return rtrn
-end
-
 function gather_mixed_cells(wd::WalkData, max_ind=0::Int)
 
-    iszero(max_ind) && return [m.inds for m in keys(wd.cells)]
+    iszero(max_ind) && return collect(wd.finished_cells)
     result = MixedCellInds[]
-    for m in keys(wd.cells)
-        any(S -> any(i -> i > max_ind, S), m.inds) && continue
-        push!(result, m.inds)
+    for minds in wd.finished_cells
+        any(S -> any(i -> i > max_ind, S), minds) && continue
+        push!(result, minds)
     end
 
     return result
-end
-
-function add_to_dict!(d::Dict{T, Vector{S}}, k::T, v::S) where {T, S}
-    if haskey(d, k)
-        if !(v in d[k])
-            push!(d[k], v)
-        end
-    else
-        d[k] = [v]
-    end
 end
 
 function id_matrix(n)
@@ -373,7 +265,9 @@ function get_A_disc_equations(A::Matrix{Int}, dehom=1)
     return fs
 end
 
-function specialize(F::Vector{<:MPolyRingElem}, choice_of_parameters::Vector{<:Union{Int, RingElem}})
+function specialize(F::Vector{<:MPolyRingElem},
+                    choice_of_parameters::Vector{<:Union{Int, RingElem}})
+    
     Kax = parent(first(F))
     Ka = coefficient_ring(Kax)
     K = base_ring(Ka)

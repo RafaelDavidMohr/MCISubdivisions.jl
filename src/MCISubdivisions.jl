@@ -9,9 +9,8 @@ include("typedefs.jl")
 include("helpers.jl")
 include("mixed_subdivs.jl")
 include("elimination.jl")
-include("direct_alg.jl")
 
-export mixed_volume, mixed_subdivision, real_root_count, get_eliminant_polytope, get_A_disc_equations
+export mixed_volume, mixed_subdivision, get_eliminant_polytope, get_A_disc_equations
 
 # --- Main functions --- #
 
@@ -44,11 +43,6 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C};
     p0, p1 = wd.p0, wd.p1
     A_size = size(A, 2)
     return DualVector(p1.r[1:A_size], p1.eps[1:A_size]), gather_mixed_cells(wd, A_size)
-end
-
-function real_root_count(ms::Vector{MixedCellInds}, A::Matrix{Int},
-                         V::Matrix{QQFieldElem})
-    return sum([real_root_count(m, A, V) for m in ms])
 end
 
 function get_eliminant_polytope(F::Vector{<:MPolyRingElem})
