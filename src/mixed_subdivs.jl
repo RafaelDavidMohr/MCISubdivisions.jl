@@ -2,7 +2,6 @@
 
 function walk_homotopy!(w::WalkData)
 
-    @info "starting homotopy"
     p0, p1 = w.p0, w.p1
     if p0.r == p1.r && p0.eps == p1.eps
         @info "no deformation, nothing to do"
@@ -10,15 +9,15 @@ function walk_homotopy!(w::WalkData)
     end
 
     while !isempty(w.cells)
-        @info "$(length(w.cells)) cells left"
-        mtbl = popfirst!(w.cells)
+        mtbl = extract_min!(w.cells)
         if is_finished(mtbl)
-            @info "cell finished"
             push!(w.finished_cells, mtbl.cell.inds)
             continue
         end
         new_cell_tables = mixed_cell_flip!(mtbl, w)
-        append!(w.cells, new_cell_tables)
+        for nc in new_cell_tables
+            push!(w.cells, nc)
+        end
     end
 end
 
@@ -42,7 +41,6 @@ function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem}, d::Vector{Int})
     # extended MCI
     F = parent(first(V))
     p_start = rand(-10000:10000, A_size)
-    @info "Building start system"
     col_inds = select_max_weight_columns(A, p_start)
     sd = subdivision_of_points(transpose(A[:, col_inds]), -p_start[col_inds])
     A_start = copy(A)
@@ -118,17 +116,13 @@ function mixed_cell_flip!(mtbl::CellTable,
         if is_affine_independent(M.A, new_m_inds)
             is_simple_exchange = is_exchange(c) && length(S_new_next) <= 1
             new_tbl = if is_simple_exchange
-                new_m, walls, i_min = new_cell_simple_exchange(mtbl, k, new_m_inds)
-                CellTable(new_m, walls, i_min)
-                # new_m = MixedCell(new_m_inds, M)
-                # t_last = cross_val_from_dp(c.dot0, c.dot1)
-                # walls, i_min = compute_active_walls!(new_m, M, wd.p0, wd.p1, t_last)
-                # CellTable(new_m, walls, i_min)
+                new_m, walls, i_min, t_min = new_cell_simple_exchange(mtbl, k, new_m_inds)
+                CellTable(new_m, walls, i_min, t_min)
             else
                 new_m = MixedCell(new_m_inds, M)
                 t_last = cross_val_from_dp(c.dot0, c.dot1)
-                walls, i_min = compute_active_walls!(new_m, M, wd.p0, wd.p1, t_last)
-                CellTable(new_m, walls, i_min)
+                walls, i_min, t_min = compute_active_walls!(new_m, M, wd.p0, wd.p1, t_last)
+                CellTable(new_m, walls, i_min, t_min)
             end
             push!(new_cell_tables, new_tbl)
         end
@@ -190,7 +184,7 @@ function new_cell_simple_exchange(mtbl::CellTable, k::Int, # position in mixed c
                                        co.act_index, t_min, i_min, t_last,
                                        cfs_new, d0_new, d1_new)
     end
-    return new_m, walls, i_min
+    return new_m, walls, i_min, t_min
 end
 
 function compute_active_walls!(m::MixedCell,
@@ -243,7 +237,7 @@ function compute_active_walls!(m::MixedCell,
                                            t_last, c_cfs_s, d0c, d1c)
         end
     end
-    return walls, i_min
+    return walls, i_min, t_min
 end
 
 function add_hyperplane!(walls::Vector{Hyperplane},

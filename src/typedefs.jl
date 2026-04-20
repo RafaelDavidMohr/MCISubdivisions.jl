@@ -1,3 +1,27 @@
+# --- MinExtractor --- #
+
+struct MinExtractor{T}
+    heap::BinaryMinHeap{T}
+    seen::Set{T}
+    
+    MinExtractor{T}() where T = new(BinaryMinHeap{T}(), Set{T}())
+end
+
+Base.isempty(me::MinExtractor) = isempty(me.seen)
+
+function Base.push!(me::MinExtractor{T}, x::T) where T
+    x in me.seen && return
+    push!(me.seen, x)
+    push!(me.heap, x)
+    return
+end
+
+function extract_min!(me::MinExtractor{T}) where T
+    x = pop!(me.heap)
+    delete!(me.seen, x)
+    return x
+end
+
 # --- Mixed Cell --- #
 
 const MixedCellInds = Vector{Vector{Int}}
@@ -172,6 +196,7 @@ struct CellTable
     cell::MixedCell
     walls::Vector{Hyperplane}
     i_min::Int
+    t_min::DualNumber
 end
 
 function CellTable(m::MixedCell,
@@ -180,9 +205,14 @@ function CellTable(m::MixedCell,
                    p1::DualVector,
                    t_curr::DualNumber=zero(DualNumber))
 
-    walls, i_min = compute_active_walls!(m, M, p0, p1, t_curr)
-    return CellTable(m, walls, i_min)
+    walls, i_min, t_min = compute_active_walls!(m, M, p0, p1, t_curr)
+    return CellTable(m, walls, i_min, t_min)
 end
+
+Base.:(==)(a::CellTable, b::CellTable) = a.cell == b.cell
+Base.hash(a::CellTable, h::UInt) = Base.hash(a.cell, h)
+
+Base.isless(a::CellTable, b::CellTable) = Base.isless(a.t_min, b.t_min)
 
 is_finished(mtbl::CellTable) = iszero(mtbl.i_min)
 
@@ -190,7 +220,7 @@ is_finished(mtbl::CellTable) = iszero(mtbl.i_min)
 
 mutable struct WalkData
     M::MCI
-    cells::Vector{CellTable}
+    cells::MinExtractor{CellTable}
     finished_cells::Set{MixedCellInds}
     p0::DualVector
     p1::DualVector
@@ -201,7 +231,10 @@ function WalkData(M::MCI,
                   p0::DualVector,
                   p1::DualVector)
 
-    cells = [CellTable(m, M, p0, p1) for m in initial_mixed_cells]
+    cells = MinExtractor{CellTable}()
+    for m in initial_mixed_cells
+        push!(cells, CellTable(m, M, p0, p1))
+    end
     return WalkData(M, cells, Set{MixedCellInds}(), p0, p1)
 end
 

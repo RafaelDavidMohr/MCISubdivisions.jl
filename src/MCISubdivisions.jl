@@ -4,6 +4,7 @@ using Oscar
 using LinearAlgebra
 using Logging
 using SparseArrays
+using DataStructures
 
 include("typedefs.jl")
 include("helpers.jl")
