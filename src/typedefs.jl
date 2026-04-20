@@ -181,10 +181,10 @@ function CellTable(m::MixedCell,
                    t_curr::DualNumber=zero(DualNumber))
 
     walls, i_min = compute_active_walls!(m, M, p0, p1, t_curr)
-    return CellTable(m, walls, dopts, i_min)
+    return CellTable(m, walls, i_min)
 end
 
-is_finished(mtbl::CellTable) = isempty(mtbl.walls)
+is_finished(mtbl::CellTable) = iszero(mtbl.i_min)
 
 # --- WalkData --- # 
 

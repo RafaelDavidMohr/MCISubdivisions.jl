@@ -81,7 +81,7 @@ end
 
 # --- Functions related to mixed cell cones --- #
 
-function mixed_cell_flip!(mtbl::MixedCell,
+function mixed_cell_flip!(mtbl::CellTable,
                           wd::WalkData)
 
     new_cell_tables = CellTable[]
@@ -99,8 +99,8 @@ function mixed_cell_flip!(mtbl::MixedCell,
     F = prime_field_V(M)
     for (k, i) in enumerate(m.inds[ai])
         iszero(c.cfs[i]) && continue # correct?
-        S_new = exchange(M.V, m.inds, act_index, k, new_inds)
-        if partial_sum_sign(S_new)
+        S_new = exchange(M.V, m.inds, ai, k, new_inds)
+        if partial_sum_sign(S_new, c)
             push!(Ss_new, (k, S_new))
         end
     end
@@ -109,23 +109,25 @@ function mixed_cell_flip!(mtbl::MixedCell,
     for (k, S_new) in Ss_new
         sort!(S_new)
         S_new_next = sort(setdiff(inds, S_new))
-        next_ind = is_exchange(c) ? act_index + 1 : act_index + 2
+        next_ind = is_exchange(c) ? ai + 1 : ai + 2
         new_m_inds = if length(S_new_next) > 1
-            [m.inds[1:act_index-1]..., S_new, S_new_next,
-             m.inds[next_ind:end]...]
+            [m.inds[1:ai-1]..., S_new, S_new_next, m.inds[next_ind:end]...]
         else
-            [m.inds[1:act_index-1]..., S_new,
-             m.inds[next_ind:end]...]
+            [m.inds[1:ai-1]..., S_new, m.inds[next_ind:end]...]
         end
         if is_affine_independent(M.A, new_m_inds)
             is_simple_exchange = is_exchange(c) && length(S_new_next) <= 1
             new_tbl = if is_simple_exchange
                 new_m, walls, i_min = new_cell_simple_exchange(mtbl, k, new_m_inds)
                 CellTable(new_m, walls, i_min)
+                # new_m = MixedCell(new_m_inds, M)
+                # t_last = cross_val_from_dp(c.dot0, c.dot1)
+                # walls, i_min = compute_active_walls!(new_m, M, wd.p0, wd.p1, t_last)
+                # CellTable(new_m, walls, i_min)
             else
                 new_m = MixedCell(new_m_inds, M)
                 t_last = cross_val_from_dp(c.dot0, c.dot1)
-                walls, i_min = compute_active_walls!(new_mc, M, wd.p0, wd.p1, t_last)
+                walls, i_min = compute_active_walls!(new_m, M, wd.p0, wd.p1, t_last)
                 CellTable(new_m, walls, i_min)
             end
             push!(new_cell_tables, new_tbl)
@@ -157,11 +159,11 @@ function new_cell_simple_exchange(mtbl::CellTable, k::Int, # position in mixed c
     c = mtbl.walls[mtbl.i_min]
     t_last = cross_val_from_dp(c.dot0, c.dot1)
     
-    si = m.inds[act_index][k]
-    ei = c.exchange_index
     ai = c.act_index
+    si = m.inds[ai][k]
+    ei = c.exchange_index
     l = findfirst(ind -> ind == ei, m.loc_inds[ai])
-    new_loc_inds = m.loc_inds[ai]
+    new_loc_inds = copy(m.loc_inds[ai])
     new_loc_inds[l] = si
     sort!(new_loc_inds)
     
@@ -173,26 +175,20 @@ function new_cell_simple_exchange(mtbl::CellTable, k::Int, # position in mixed c
     t_min = one(DualNumber)
     i_min = 0
     for (i, co) in enumerate(mtbl.walls)
-        i == c_ind && continue # THIS MAY BREAK IF THERE IS A DUPLICATE
-        if iszero(co.cfs[si])
-            push!(walls, co)
-            t_co = cross_val_from_dp(co.dot0, co.dot1)
-            if t_co < t_min
-                t_min = t_co
-                i_min = length(walls)
-            end
+        i == mtbl.i_min && continue # THIS MAY BREAK IF THERE IS A DUPLICATE
+        l1, l2 = if iszero(co.cfs[si])
+            1, 0
         else
             l = lcm(c.cfs[si], co.cfs[si])
-            l1 = div(l, co.cfs[si]) 
-            l2 = div(l, c.cfs[si]) # should always be ≠ 0
-            cfs_new = l1*co.cfs - l2*c.cfs
-            dco0, dco1 = co.dot0, co.dot1
-            d0_new = l1*dco0 - l2*dc0
-            d1_new = l1*dco1 - l2*dc1
-            t_min, i_min = add_hyperplane!(walls, new_m.inds, co.exchange_index,
-                                           co.act_index, t_min, i_min, t_last,
-                                           cfs_new, d0_new, d1_new)
+            div(l, co.cfs[si]), div(l, c.cfs[si]) # should always be ≠ 0
         end
+        cfs_new = l1*co.cfs - l2*c.cfs
+        dco0, dco1 = co.dot0, co.dot1
+        d0_new = l1*dco0 - l2*dc0
+        d1_new = l1*dco1 - l2*dc1
+        t_min, i_min = add_hyperplane!(walls, new_m.inds, co.exchange_index,
+                                       co.act_index, t_min, i_min, t_last,
+                                       cfs_new, d0_new, d1_new)
     end
     return new_m, walls, i_min
 end
@@ -239,13 +235,12 @@ function compute_active_walls!(m::MixedCell,
                     c_cfs[ind] = Int(round(d * sol[l]))
                 end
                 c_cfs[j] -= d
-                g = gcd(c_cfs)
-                c_cfs = [div(cf, g) for cf in c_cfs]
             end
-            d0c, d1c = dot(p0, cfs), dot(p1, cfs)
+            c_cfs_s = sparse(c_cfs)
+            d0c, d1c = dot(p0, c_cfs_s), dot(p1, c_cfs_s)
             t_min, i_min = add_hyperplane!(walls, m.inds, ei, i,
                                            t_min, i_min,
-                                           t_last, c, d0c, dc1)
+                                           t_last, c_cfs_s, d0c, d1c)
         end
     end
     return walls, i_min
@@ -263,16 +258,13 @@ function add_hyperplane!(walls::Vector{Hyperplane},
                          dc1::DualNumber)
 
     t_c = cross_val_from_dp(dc0, dc1)
-    if t_c <= t_last || one(DualNumber) < t_c
-        return t_min, i_min
-    end
-    sgn = signbit(partial_sum(m[i], c_new))
+    sgn = signbit(partial_sum(m[ai], cfs))
     c_new = Hyperplane(cfs, dc0, dc1, ai, sgn, ei)
     push!(walls, c_new)
-    if t_c < t_min
-        return t_c, length(walls)
-    else
+    if t_c <= t_last || one(DualNumber) < t_c || t_c > t_min
         return t_min, i_min
+    else
+        return t_c, length(walls)
     end
 end
 

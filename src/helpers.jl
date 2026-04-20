@@ -152,17 +152,21 @@ end
 
 # --- circuits --- #
 
-function partial_sum(inds::Vector{Int}, c::Hyperplane)
-    return sum(c.cfs[inds])
+function partial_sum(inds::Vector{Int}, c::SparseVector{Int, Int})
+    return sum(c[inds])
 end
 
 function partial_sum_sign(inds::Vector{Int}, c::Hyperplane)
-    res = partial_sum(inds, c)
+    res = partial_sum(inds, c.cfs)
     return res != 0 && (c.sgn ? res > 0 : res < 0) # TODO: check if 0 is allowed here
 end
 
 function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
     return (Int).(dot(v, c.cfs))
+end
+
+function LinearAlgebra.dot(l::DualVector, c::SparseVector{Int, Int})
+    return DualNumber(dot(l.r, c), dot(l.eps, c))
 end
 
 function LinearAlgebra.dot(l::DualVector, c::Hyperplane)
