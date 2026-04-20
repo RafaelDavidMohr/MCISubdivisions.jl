@@ -127,7 +127,7 @@ end
 
 function DualVector(r::Vector{Int})
     l = length(r)
-    return DualVector(r, rand(-10000:10000, l))
+    return DualVector(r, rand(-50000:50000, l))
 end
 
 function test_vector(l::DualVector; rat=10000)
@@ -143,6 +143,18 @@ struct Hyperplane
     act_index::Int
     sgn::Bool
     exchange_index::Int
+
+    function Hyperplane(cfs::SparseVector{Int, Int}, dot0::DualNumber, dot1::DualNumber,
+                        act_index::Int, sgn::Bool, exchange_index::Int)
+        g = gcd(cfs)
+        if g != 1
+            cfs .÷= g
+            dot0 /= g
+            dot1 /= g
+            sgn = g < 0 ? !sgn : sgn 
+        end
+        return new(cfs, dot0, dot1, act_index, sgn, exchange_index)
+    end
 end
 
 function Base.:(==)(c1::Hyperplane, c2::Hyperplane)

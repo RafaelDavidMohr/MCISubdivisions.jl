@@ -35,7 +35,7 @@ function mixed_volume(A::Matrix{Int}, V::Matrix{C}) where C
 end
 
 function mixed_subdivision(A::Matrix{Int}, V::Matrix{C};
-                           d::Vector{Int}=rand(-10000:10000, size(A, 2))) where C
+                           d::Vector{Int}=rand(-50000:50000, size(A, 2))) where C
     Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
     wd = starting_system(A, Vp, d)
 

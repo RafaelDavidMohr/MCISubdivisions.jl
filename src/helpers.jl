@@ -9,7 +9,7 @@ function MixedCell(inds::MixedCellInds, M::MCI)
     all_m_inds = Int[]
     rk = 0
     k = length(inds)
-    for i in 1:length(inds)
+    @inbounds for i in 1:length(inds)
         rem_inds = setdiff(rem_inds, inds[i])
         all_m_inds = vcat(all_m_inds, inds[i])
         rk += length(inds[i]) - 1
@@ -31,7 +31,7 @@ function find_loc_indices!(M::MCI, inds::Vector{Int}, test_inds::Vector{Int},
                            V_rank::Int) 
 
     res = Int[]
-    for i in test_inds
+    @inbounds for i in test_inds
         if rank!(M, vcat(inds, [i])) == V_rank
             push!(res, i)
         end
@@ -67,9 +67,9 @@ end
 
 function cayley_indices(m::MixedCell, j::Int)
     if j == length(m)
-        return m.loc_inds[j]
+        return @inbounds m.loc_inds[j]
     end
-    res = vcat(m.loc_inds[j], [first(m.inds[j+1])])
+    res = @inbounds vcat(m.loc_inds[j], [first(m.inds[j+1])])
     return sort(res)
 end
 
@@ -134,7 +134,7 @@ end
 function select_max_weight_columns(A::Matrix, w::Vector)
     column_dict = Dict()
     
-    for i in 1:size(A, 2)
+    @inbounds for i in 1:size(A, 2)
         col_key = Tuple(A[:, i])
         
         if haskey(column_dict, col_key)
@@ -153,7 +153,7 @@ end
 # --- circuits --- #
 
 function partial_sum(inds::Vector{Int}, c::SparseVector{Int, Int})
-    return sum(c[inds])
+    return @inbounds sum(c[inds])
 end
 
 function partial_sum_sign(inds::Vector{Int}, c::Hyperplane)
@@ -197,7 +197,7 @@ end
 
 function forgetful_lift(A_size::Int, forget_inds::Vector{Int})
     d = Vector{Int}(undef, A_size)
-    for i in 1:A_size
+    @inbounds for i in 1:A_size
         if i in forget_inds
             d[i] = 0
         else
@@ -211,7 +211,7 @@ function forgetful_lift(A_size::Int, forget_inds::Vector{Int}, d_eps::Vector{Int
     d = Vector{Int}(undef, A_size)
     d_eps_new = Vector{Int}(undef, A_size)
     cnt = 1
-    for i in 1:A_size
+    @inbounds for i in 1:A_size
         if i in forget_inds
             d[i] = 0
             d_eps_new[i] = 0

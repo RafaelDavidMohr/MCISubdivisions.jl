@@ -40,12 +40,12 @@ function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem}, d::Vector{Int})
 
     # extended MCI
     F = parent(first(V))
-    p_start = rand(-10000:10000, A_size)
+    p_start = rand(-50000:50000, A_size)
     col_inds = select_max_weight_columns(A, p_start)
-    sd = subdivision_of_points(transpose(A[:, col_inds]), -p_start[col_inds])
+    sd = @inbounds subdivision_of_points(transpose(A[:, col_inds]), -p_start[col_inds])
     A_start = copy(A)
     V_start = rand_arr_ff(F, n, A_size)
-    init_mc = [[col_inds[c]] for c in maximal_cells(sd)]
+    init_mc = @inbounds [[col_inds[c]] for c in maximal_cells(sd)]
 
     return homotopy(A, V, A_start, V_start, init_mc, p_start, d)
 end
@@ -85,17 +85,18 @@ function mixed_cell_flip!(mtbl::CellTable,
     new_cell_tables = CellTable[]
     
     m = mtbl.cell
-    c = mtbl.walls[mtbl.i_min]
+    @inbounds c = mtbl.walls[mtbl.i_min]
     ai = c.act_index
+    ei = c.exchange_index
     
     # indices from which new mixed cell component can come
-    new_inds = is_exchange(c) ? [c.exchange_index] : m.inds[ai + 1]
+    new_inds = is_exchange(c) ? [ei] : @inbounds m.inds[ai + 1]
 
     M = wd.M
     
     Ss_new = Tuple{Int, Vector{Int}}[]
     F = prime_field_V(M)
-    for (k, i) in enumerate(m.inds[ai])
+    @inbounds for (k, i) in enumerate(m.inds[ai])
         iszero(c.cfs[i]) && continue # correct?
         S_new = exchange(M.V, m.inds, ai, k, new_inds)
         if partial_sum_sign(S_new, c)
@@ -109,17 +110,25 @@ function mixed_cell_flip!(mtbl::CellTable,
         S_new_next = sort(setdiff(inds, S_new))
         next_ind = is_exchange(c) ? ai + 1 : ai + 2
         new_m_inds = if length(S_new_next) > 1
-            [m.inds[1:ai-1]..., S_new, S_new_next, m.inds[next_ind:end]...]
+            @inbounds [m.inds[1:ai-1]..., S_new, S_new_next, m.inds[next_ind:end]...]
         else
-            [m.inds[1:ai-1]..., S_new, m.inds[next_ind:end]...]
+            @inbounds [m.inds[1:ai-1]..., S_new, m.inds[next_ind:end]...]
         end
         if is_affine_independent(M.A, new_m_inds)
             is_simple_exchange = is_exchange(c) && length(S_new_next) <= 1
             new_tbl = if is_simple_exchange
-                new_m, walls, i_min, t_min = new_cell_simple_exchange(mtbl, k, new_m_inds)
+                @inbounds si = m.inds[ai][k]
+                @inbounds l = findfirst(ind -> ind == ei, m.loc_inds[ai])
+                @inbounds new_loc_inds = copy(m.loc_inds[ai])
+                @inbounds new_loc_inds[l] = si
+                sort!(new_loc_inds)
+                @inbounds new_m = MixedCell(new_m_inds, [i == ai ? new_loc_inds : m.loc_inds[i] for i in 1:length(m.inds)])
+                new_m in wd.cells.seen && continue
+                walls, i_min, t_min = new_cell_simple_exchange(mtbl, k, new_m)
                 CellTable(new_m, walls, i_min, t_min)
             else
                 new_m = MixedCell(new_m_inds, M)
+                new_m in wd.cells.seen && continue
                 t_last = cross_val_from_dp(c.dot0, c.dot1)
                 walls, i_min, t_min = compute_active_walls!(new_m, M, wd.p0, wd.p1, t_last)
                 CellTable(new_m, walls, i_min, t_min)
@@ -134,43 +143,34 @@ function exchange(V::Matrix{C}, m::MixedCellInds,
                   act_index::Int, k::Int,
                   new_inds::Vector{Int}) where C
     
-    candidate_indices = vcat(m[act_index][1:k-1], m[act_index][k+1:end],
-                             new_inds)
-    V_trunc_inds = vcat(candidate_indices,
-                        [idx[2:end] for idx in m[1:act_index-1]]...)
-    V_trunc = V[:, V_trunc_inds]
+    @inbounds candidate_indices = vcat(m[act_index][1:k-1], m[act_index][k+1:end],
+                                       new_inds)
+    @inbounds V_trunc_inds = vcat(candidate_indices,
+                                  [idx[2:end] for idx in m[1:act_index-1]]...)
+    @inbounds V_trunc = V[:, V_trunc_inds]
     F = parent(first(V))
     K = kernel(matrix(F, V_trunc), side = :right)
     @assert isone(size(K, 2))
     cl = length(candidate_indices)
-    return candidate_indices[findall(j -> !iszero(K[j, :]), 1:cl)]
+    return @inbounds candidate_indices[findall(j -> !iszero(K[j, :]), 1:cl)]
 end
 
-function new_cell_simple_exchange(mtbl::CellTable, k::Int, # position in mixed cell
-                                  new_m_inds::Vector{Vector{Int}})
+function new_cell_simple_exchange(mtbl::CellTable, k::Int, new_m::MixedCell)
 
     m = mtbl.cell
     c = mtbl.walls[mtbl.i_min]
-    t_last = cross_val_from_dp(c.dot0, c.dot1)
+    t_last = mtbl.t_min
     
     ai = c.act_index
     si = m.inds[ai][k]
-    ei = c.exchange_index
-    l = findfirst(ind -> ind == ei, m.loc_inds[ai])
-    new_loc_inds = copy(m.loc_inds[ai])
-    new_loc_inds[l] = si
-    sort!(new_loc_inds)
-    
-    new_m = MixedCell(new_m_inds, [i == ai ? new_loc_inds : m.loc_inds[i] for i in 1:length(m.inds)])
 
     walls = Hyperplane[]
 
     dc0, dc1 = c.dot0, c.dot1
     t_min = one(DualNumber)
     i_min = 0
-    for (i, co) in enumerate(mtbl.walls)
-        i == mtbl.i_min && continue # THIS MAY BREAK IF THERE IS A DUPLICATE
-        l1, l2 = if iszero(co.cfs[si])
+    @inbounds for (i, co) in enumerate(mtbl.walls)
+        l1, l2 = if iszero(co.cfs[si]) || i == mtbl.i_min
             1, 0
         else
             l = lcm(c.cfs[si], co.cfs[si])
@@ -180,11 +180,12 @@ function new_cell_simple_exchange(mtbl::CellTable, k::Int, # position in mixed c
         dco0, dco1 = co.dot0, co.dot1
         d0_new = l1*dco0 - l2*dc0
         d1_new = l1*dco1 - l2*dc1
-        t_min, i_min = add_hyperplane!(walls, new_m.inds, co.exchange_index,
+        new_ei = i == mtbl.i_min ? si : co.exchange_index
+        t_min, i_min = add_hyperplane!(walls, new_m.inds, new_ei,
                                        co.act_index, t_min, i_min, t_last,
                                        cfs_new, d0_new, d1_new)
     end
-    return new_m, walls, i_min, t_min
+    return walls, i_min, t_min
 end
 
 function compute_active_walls!(m::MixedCell,
@@ -198,7 +199,7 @@ function compute_active_walls!(m::MixedCell,
 
     cayley_config = Matrix{Float64}(undef, n + k, 0)
 
-    for i in 1:k
+    @inbounds for i in 1:k
         apd = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
         for j in m.inds[i]
             cayley_config = hcat(cayley_config,
@@ -213,7 +214,7 @@ function compute_active_walls!(m::MixedCell,
     walls = Hyperplane[]
     t_min = one(DualNumber)
     i_min = 0
-    for i in 1:k
+    @inbounds for i in 1:k
         apd = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
         for j in cayley_indices(m, i)
             ei = i == k || j ∉ m.inds[i+1] ? j : 0
@@ -251,9 +252,9 @@ function add_hyperplane!(walls::Vector{Hyperplane},
                          dc0::DualNumber,
                          dc1::DualNumber)
 
-    t_c = cross_val_from_dp(dc0, dc1)
-    sgn = signbit(partial_sum(m[ai], cfs))
+    @inbounds sgn = signbit(partial_sum(m[ai], cfs))
     c_new = Hyperplane(cfs, dc0, dc1, ai, sgn, ei)
+    t_c = cross_val_from_dp(c_new.dot0, c_new.dot1)
     push!(walls, c_new)
     if t_c <= t_last || one(DualNumber) < t_c || t_c > t_min
         return t_min, i_min
