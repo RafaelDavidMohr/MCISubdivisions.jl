@@ -41,7 +41,7 @@ function construct_polytope!(E::ElimData)
             nv = (Int).(fc.a[1,:])
             val = fc.b
             # w = make_smaller(10000 * nv + rand(-10:10, length(nv)))
-            w = 1000 * nv + rand(-10:10, length(nv))
+            w = 100 * nv + rand(-3:3, length(nv))
             new_vert = elim_vertex!(E, w)
             if dot(nv, new_vert) == val
                 @info "facet confirmed"
