@@ -39,7 +39,7 @@ function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem}, d::Vector{Int})
 
     # extended MCI
     F = parent(first(V))
-    p_start = rand(-50000:50000, A_size)
+    p_start = rand(-LSIZE:LSIZE, A_size)
     col_inds = select_max_weight_columns(A, p_start)
     sd = @inbounds subdivision_of_points(transpose(A[:, col_inds]), -p_start[col_inds])
     A_start = copy(A)
@@ -53,8 +53,8 @@ end
 function homotopy(A_target::Matrix{Int}, V_target::Matrix{FqFieldElem},
                   A_start::Matrix{Int}, V_start::Matrix{FqFieldElem},
                   ms_start::Vector{MixedCellInds},
-                  p_start::Vector{Int},
-                  p_target::Vector{Int})
+                  p_start::Vector{<:Integer},
+                  p_target::Vector{<:Integer})
 
     A_ext = hcat(A_target, A_start)
     V_ext = hcat(V_target, V_start)
@@ -154,7 +154,8 @@ function exchange(V::Matrix{C}, m::MixedCellInds,
     return @inbounds candidate_indices[findall(j -> !iszero(K[j, :]), 1:cl)]
 end
 
-function new_cell_simple_exchange(mtbl::CellTable, k::Int, new_m::MixedCell)
+function new_cell_simple_exchange(mtbl::CellTable{T},
+                                  k::Int, new_m::MixedCell) where T
 
     m = mtbl.cell
     c = mtbl.walls[mtbl.i_min]
@@ -163,10 +164,10 @@ function new_cell_simple_exchange(mtbl::CellTable, k::Int, new_m::MixedCell)
     ai = c.act_index
     si = m.inds[ai][k]
 
-    walls = Hyperplane[]
+    walls = Hyperplane{T}[]
 
     dc0, dc1 = c.dot0, c.dot1
-    t_min = one(DualNumber)
+    t_min = one(DualNumber{T})
     i_min = 0
     @inbounds for (i, co) in enumerate(mtbl.walls)
         l1, l2 = if iszero(co.cfs[si]) || i == mtbl.i_min
@@ -189,9 +190,9 @@ end
 
 function compute_active_walls!(m::MixedCell,
                                M::MCI,
-                               p0::DualVector,
-                               p1::DualVector,
-                               t_last::DualNumber)
+                               p0::DualVector{T},
+                               p1::DualVector{T},
+                               t_last::DualNumber{T}) where T
 
     k = length(m)
     n = ambient_dim(M)
@@ -210,8 +211,8 @@ function compute_active_walls!(m::MixedCell,
     d = Int(round(det(cayley_config_fac)))
     all_m_inds = vcat(m.inds...)
 
-    walls = Hyperplane[]
-    t_min = one(DualNumber)
+    walls = Hyperplane{T}[]
+    t_min = one(DualNumber{T})
     i_min = 0
     @inbounds for i in 1:k
         apd = [j == i ? one(Float64) : zero(Float64) for j in 1:k]
@@ -240,22 +241,22 @@ function compute_active_walls!(m::MixedCell,
     return walls, i_min, t_min
 end
 
-function add_hyperplane!(walls::Vector{Hyperplane},
+function add_hyperplane!(walls::Vector{Hyperplane{T}},
                          m::MixedCellInds,
                          ei::Int,
                          ai::Int,
-                         t_min::DualNumber,
+                         t_min::DualNumber{T},
                          i_min::Int,
-                         t_last::DualNumber,
+                         t_last::DualNumber{T},
                          cfs::SparseVector{Int, Int},
                          dc0::DualNumber,
-                         dc1::DualNumber)
+                         dc1::DualNumber) where T
 
     @inbounds sgn = signbit(partial_sum(m[ai], cfs))
-    c_new = Hyperplane(cfs, dc0, dc1, ai, sgn, ei)
+    c_new = Hyperplane{T}(cfs, dc0, dc1, ai, sgn, ei)
     t_c = cross_val_from_dp(c_new.dot0, c_new.dot1)
     push!(walls, c_new)
-    if t_c <= t_last || one(DualNumber) < t_c || t_c > t_min
+    if t_c <= t_last || one(DualNumber{T}) < t_c || t_c > t_min
         return t_min, i_min
     else
         return t_c, length(walls)

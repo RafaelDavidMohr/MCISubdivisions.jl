@@ -41,7 +41,8 @@ function construct_polytope!(E::ElimData)
 
             nv = (Int).(fc.a[1,:])
             val = fc.b
-            w = make_smaller(10000 * nv + rand(-10:10, length(nv)))
+            # w = make_smaller(10000 * nv + rand(-10:10, length(nv)))
+            w = 1000 * nv + rand(-10:10, length(nv))
             new_vert = elim_vertex!(E, w)
             if dot(nv, new_vert) == val
                 @info "facet confirmed"
@@ -83,8 +84,6 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
     new_shift = min(minimum(w_dot_new) - 1, 0) 
     w_dot_new = w_dot_new .- new_shift
 
-    # scl = maximum(w_dot_new - w_dot_old) + 1
-    # w_dot_old .+= scl
     scl = Int(ceil(maximum(w_dot_new ./ w_dot_old))) + 10
     w_dot_old *= scl
     

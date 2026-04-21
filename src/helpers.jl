@@ -25,8 +25,6 @@ function MixedCell(inds::MixedCellInds, M::MCI)
     return MixedCell(inds, loc_inds)
 end
 
-# assume that V is echelonized
-# TODO: OPTIMIZE
 function find_loc_indices!(M::MCI, inds::Vector{Int}, test_inds::Vector{Int},
                            V_rank::Int) 
 
@@ -161,12 +159,12 @@ function partial_sum_sign(inds::Vector{Int}, c::Hyperplane)
     return res != 0 && (c.sgn ? res > 0 : res < 0) # TODO: check if 0 is allowed here
 end
 
-function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane)
-    return (Int).(dot(v, c.cfs))
+function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane{T}) where T
+    return (T).(dot(v, c.cfs))
 end
 
-function LinearAlgebra.dot(l::DualVector, c::SparseVector{Int, Int})
-    return DualNumber(dot(l.r, c), dot(l.eps, c))
+function LinearAlgebra.dot(l::DualVector{T}, c::SparseVector{Int, Int}) where T
+    return DualNumber(T(dot(l.r, c)), T(dot(l.eps, c)))
 end
 
 function LinearAlgebra.dot(l::DualVector, c::Hyperplane)
@@ -181,13 +179,13 @@ function crossing_val(l0::DualVector, l1::DualVector, c::SparseVector{Int, Int})
     return l0d, l1d, cross_val_from_dp(l0d, l1d)
 end
 
-function cross_val_from_dp(l0d::DualNumber, l1d::DualNumber)
+function cross_val_from_dp(l0d::DualNumber{T}, l1d::DualNumber{T}) where T
     denom = l0d - l1d
 
     if iszero(l0d.r) && iszero(l1d.r)
-        return DualNumber(l0d.eps * denom.eps^(-1), 0.0)
+        return DualNumber{T}(l0d.eps * denom.eps^(-1), zero(T))
     elseif iszero(denom.r)
-        return DualNumber(2.0, 0.0)
+        return DualNumber{T}(T(2), zero(T))
     else
         return l0d * inv(denom)
     end
@@ -195,8 +193,8 @@ end
 
 # --- other helpers --- #
 
-function forgetful_lift(A_size::Int, forget_inds::Vector{Int})
-    d = Vector{Int}(undef, A_size)
+function forgetful_lift(A_size::Int, forget_inds::Vector{Int}, ::T) where T
+    d = Vector{T}(undef, A_size)
     @inbounds for i in 1:A_size
         if i in forget_inds
             d[i] = 0
@@ -207,9 +205,11 @@ function forgetful_lift(A_size::Int, forget_inds::Vector{Int})
     return DualVector(d)
 end
 
-function forgetful_lift(A_size::Int, forget_inds::Vector{Int}, d_eps::Vector{Int})
-    d = Vector{Int}(undef, A_size)
-    d_eps_new = Vector{Int}(undef, A_size)
+function forgetful_lift(A_size::Int, forget_inds::Vector{Int},
+                        d_eps::Vector{T}) where T
+
+    d = Vector{T}(undef, A_size)
+    d_eps_new = Vector{T}(undef, A_size)
     cnt = 1
     @inbounds for i in 1:A_size
         if i in forget_inds

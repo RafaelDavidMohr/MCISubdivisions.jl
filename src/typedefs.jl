@@ -57,10 +57,12 @@ end
 
 # --- Dual Number --- #
 
-struct DualNumber
-    r::Rational
-    eps::Rational
+struct DualNumber{T}
+    r::Rational{T}
+    eps::Rational{T}
 end
+
+DualNumber(r::T, b::T) where T = DualNumber{T}(r//1, b//1)
 
 function Base.show(io::IO, a::DualNumber)
     print(io, "$(round(a.r, digits = 2)) + ε ⋅ $(round(a.eps, digits = 2))")
@@ -70,12 +72,12 @@ function Base.iszero(a::DualNumber)
     return iszero(a.r) && iszero(a.eps)
 end
 
-function Base.zero(::Type{DualNumber})
-    return DualNumber(0.0, 0.0)
+function Base.zero(::Type{DualNumber{T}}) where T
+    return DualNumber{T}(0, 0)
 end
 
-function Base.one(::Type{DualNumber})
-    return DualNumber(1.0, 0.0)
+function Base.one(::Type{DualNumber{T}}) where T
+    return DualNumber{T}(1, 0)
 end
 
 function Base.:(+)(a::DualNumber, b::DualNumber)
@@ -94,11 +96,11 @@ function Base.:(*)(a::DualNumber, b::DualNumber)
     return DualNumber(a.r*b.r, a.r*b.eps + a.eps*b.r)
 end
 
-function Base.:(*)(a::Int, b::DualNumber)
+function Base.:(*)(a::Integer, b::DualNumber)
     return DualNumber(a*b.r, a*b.eps)
 end
 
-function Base.:(/)(a::DualNumber, b::Int)
+function Base.:(/)(a::DualNumber, b::Integer)
     return DualNumber(a.r / b, a.eps / b)
 end
 
@@ -120,14 +122,16 @@ end
 
 # --- Lift --- #
 
-struct DualVector
-    r::Vector{Int}
-    eps::Vector{Int}
+const LSIZE = 50000
+
+struct DualVector{T<:Integer}
+    r::Vector{T}
+    eps::Vector{T}
 end
 
-function DualVector(r::Vector{Int})
+function DualVector(r::Vector{<:Integer})
     l = length(r)
-    return DualVector(r, rand(-50000:50000, l))
+    return DualVector(r, rand(-LSIZE:LSIZE, l))
 end
 
 function test_vector(l::DualVector; rat=10000)
@@ -136,16 +140,18 @@ end
 
 # --- Hyperplane --- #
 
-struct Hyperplane
+struct Hyperplane{T}
     cfs::SparseVector{Int, Int}
-    dot0::DualNumber
-    dot1::DualNumber
+    dot0::DualNumber{T}
+    dot1::DualNumber{T}
     act_index::Int
     sgn::Bool
     exchange_index::Int
 
-    function Hyperplane(cfs::SparseVector{Int, Int}, dot0::DualNumber, dot1::DualNumber,
-                        act_index::Int, sgn::Bool, exchange_index::Int)
+    function Hyperplane{T}(cfs::SparseVector{Int, Int},
+                           dot0::DualNumber{T}, dot1::DualNumber{T},
+                           act_index::Int, sgn::Bool, exchange_index::Int) where T
+        
         g = gcd(cfs)
         if g != 1
             cfs .÷= g
@@ -204,21 +210,21 @@ end
 
 # --- CellTable --- #
 
-struct CellTable
+struct CellTable{T}
     cell::MixedCell
-    walls::Vector{Hyperplane}
+    walls::Vector{Hyperplane{T}}
     i_min::Int
-    t_min::DualNumber
+    t_min::DualNumber{T}
 end
 
 function CellTable(m::MixedCell,
                    M::MCI,
-                   p0::DualVector,
-                   p1::DualVector,
-                   t_curr::DualNumber=zero(DualNumber))
+                   p0::DualVector{T},
+                   p1::DualVector{T},
+                   t_curr::DualNumber=zero(DualNumber{T})) where T
 
     walls, i_min, t_min = compute_active_walls!(m, M, p0, p1, t_curr)
-    return CellTable(m, walls, i_min, t_min)
+    return CellTable{T}(m, walls, i_min, t_min)
 end
 
 Base.:(==)(a::CellTable, b::CellTable) = a.cell == b.cell
@@ -230,20 +236,20 @@ is_finished(mtbl::CellTable) = iszero(mtbl.i_min)
 
 # --- WalkData --- # 
 
-mutable struct WalkData
+mutable struct WalkData{T}
     M::MCI
-    cells::MinExtractor{CellTable}
+    cells::MinExtractor{CellTable{T}}
     finished_cells::Set{MixedCellInds}
-    p0::DualVector
-    p1::DualVector
+    p0::DualVector{T}
+    p1::DualVector{T}
 end
 
 function WalkData(M::MCI,
                   initial_mixed_cells::Vector{MixedCell},
-                  p0::DualVector,
-                  p1::DualVector)
+                  p0::DualVector{T},
+                  p1::DualVector{T}) where T
 
-    cells = MinExtractor{CellTable}()
+    cells = MinExtractor{CellTable{T}}()
     for m in initial_mixed_cells
         push!(cells, CellTable(m, M, p0, p1))
     end
