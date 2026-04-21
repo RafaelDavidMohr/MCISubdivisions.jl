@@ -263,19 +263,20 @@ mutable struct ElimData
     V::Matrix{FqFieldElem}
     shift::Int
     current_covec::Vector{Int}
-    current_lift::Vector{Int}
+    current_lift::Vector{Int128}
     current_ms::Vector{MixedCellInds}
 
     function ElimData(A::Matrix{Int}, V::Matrix{FqFieldElem})
         n = size(V, 1) - 1
         k = size(A, 1) - n - 1
-        w = rand(-1000:1000, k + 1)
+        w = rand(-10:10, k + 1)
         Aw = vcat(A[1:n, :], permutedims(vcat(zeros(Int, n), w)) * A)
         shft = min(minimum(i -> Aw[end, i], 1:size(Aw, 2)) - 1, 0) 
         A_shift = copy(Aw)
         A_shift[end, :] = repeat([shft], 1, size(Aw, 2))
         p, ms = with_logger(NullLogger()) do
-            mixed_subdivision(hcat(Aw, A_shift), hcat(V, V))
+            mixed_subdivision(hcat(Aw, A_shift), hcat(V, V),
+                              Int128.(rand(-LSIZE:LSIZE, 2*size(A, 2))))
         end
         return new(A, V, shft, w, p.eps, ms)
     end

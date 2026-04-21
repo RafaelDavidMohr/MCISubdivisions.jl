@@ -7,7 +7,6 @@ function construct_polytope!(E::ElimData)
     amb_dim = k + 1 
     @info "computing initial vertices"
 
-    w = rand(-10:10, amb_dim)
     vrt = elim_vertex(E)
     @info "new vertex $(vrt)"
     P = convex_hull([vrt])
@@ -95,15 +94,21 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
     V_ext = hcat(E.V, E.V)
     wd = homotopy(A_target, V_ext, A_start, V_ext,
                   E.current_ms, E.current_lift,
-                  rand(-1000:1000, size(A_target, 2)))
-    with_logger(NullLogger()) do
+                  Int128.(rand(-LSIZE:LSIZE, size(A_target, 2))))
+    
+    sz = size(A_target, 2)
+    p, ms = try 
         walk_homotopy!(wd)
+        wd.p1.eps[1:sz], gather_mixed_cells(wd, sz)
+    catch OverflowError
+        @info "Overflow, recomputing without deformation"
+        pp, mss = mixed_subdivision(A_target, V_ext,
+                                    Int128.(rand(-LSIZE:LSIZE, size(A_target, 2))))
+        pp.eps, mss
     end
 
-    sz = size(A_target, 2)
-    M_final = MCI(wd.M.V[:, 1:sz], wd.M.A[:, 1:sz])
-    E.current_ms = gather_mixed_cells(wd, sz)
-    E.current_lift = wd.p1.eps[1:sz]
+    E.current_ms = ms
+    E.current_lift = p
     E.current_covec = new_covec
     E.shift = new_shift
 end
