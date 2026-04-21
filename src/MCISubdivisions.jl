@@ -15,27 +15,31 @@ export mixed_volume, mixed_subdivision, get_eliminant_polytope, get_A_disc_equat
 
 # --- Main functions --- #
 
-function mixed_volume(F::Vector{<:MPolyRingElem})
+function mixed_volume(F::Vector{<:MPolyRingElem}; lift_type = Int)
     R = parent(first(F))
     @assert ngens(R) == length(F) "Input system not square"
     A, V = get_eci_data(F)
-    return mixed_volume(A, V)
+    return mixed_volume(A, V, lift_type = lift_type)
 end
 
-function mixed_subdivision(F::Vector{<:MPolyRingElem})
+function mixed_subdivision(F::Vector{<:MPolyRingElem}; lift_type = Int)
     R = parent(first(F))
     @assert ngens(R) == length(F) "Input system not square"
     A, V = get_eci_data(F)
-    return A, mixed_subdivision(A, V)[2]
+    d = lift_type.(rand(-LSIZE:LSIZE, size(A, 2)))
+    return A, mixed_subdivision(A, V, d)[2]
 end
 
-function mixed_volume(A::Matrix{Int}, V::Matrix{C}) where C
-    _, cells = mixed_subdivision(A, V)
+function mixed_volume(A::Matrix{Int}, V::Matrix{C}; lift_type = Int) where C
+
+    d = lift_type.(rand(-LSIZE:LSIZE, size(A, 2)))
+    _, cells = mixed_subdivision(A, V, d)
     return sum([vol(m, A) for m in cells])
 end
 
-function mixed_subdivision(A::Matrix{Int}, V::Matrix{C};
-                           d::Vector{Int}=rand(-50000:50000, size(A, 2))) where C
+function mixed_subdivision(A::Matrix{Int}, V::Matrix{C},
+                           d::Vector{T}) where {C, T}
+    
     Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
     wd = starting_system(A, Vp, d)
 

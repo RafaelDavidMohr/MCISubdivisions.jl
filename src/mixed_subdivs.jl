@@ -32,7 +32,7 @@ function deform_subdivision(A::Matrix{Int}, V::Matrix{C},
     return gather_mixed_cells(wd, excluded_inds)
 end
 
-function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem}, d::Vector{Int})
+function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem}, d::Vector{T}) where T
     n = size(A, 1)
     A_size = size(A, 2)
     no_multiset = allunique(i -> A[:, i], 1:A_size)
@@ -46,7 +46,7 @@ function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem}, d::Vector{Int})
     V_start = rand_arr_ff(F, n, A_size)
     init_mc = @inbounds [[col_inds[c]] for c in maximal_cells(sd)]
 
-    return homotopy(A, V, A_start, V_start, init_mc, p_start, d)
+    return homotopy(A, V, A_start, V_start, init_mc, T.(p_start), d)
 end
 
 # works only if conv(A_target) ⊆ conv(A_start)
