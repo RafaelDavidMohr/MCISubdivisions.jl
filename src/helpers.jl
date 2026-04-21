@@ -241,12 +241,27 @@ function rand_arr_ff(F::FqField, dims...)
 end
 
 function gather_mixed_cells(wd::WalkData, max_ind=0::Int)
-
     iszero(max_ind) && return collect(wd.finished_cells)
     result = MixedCellInds[]
     for minds in wd.finished_cells
         any(S -> any(i -> i > max_ind, S), minds) && continue
         push!(result, minds)
+    end
+    return result
+end
+
+function gather_mixed_cells(wd::WalkData, excluded_inds::Vector{Int})
+
+    isempty(excluded_inds) && return collect(wd.finished_cells)
+    ind_map = Dict{Int, Int}()
+    rem_inds = sort(setdiff(1:size(wd.M.A, 2), excluded_inds))
+    for (j, i) in enumerate(rem_inds)
+        ind_map[i] = j
+    end
+    result = MixedCellInds[]
+    for minds in wd.finished_cells
+        any(S -> any(i -> i in excluded_inds, S), minds) && continue
+        push!(result, [(idx -> ind_map[idx]).(S) for S in minds])
     end
 
     return result

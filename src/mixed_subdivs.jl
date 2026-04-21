@@ -23,14 +23,13 @@ end
 
 function deform_subdivision(A::Matrix{Int}, V::Matrix{C},
                             ms::Vector{MixedCellInds}, p0::DualVector,
-                            p1::DualVector, target_rr_count::Int=-1) where C
-
-    rr_counter = RRCounter(A, V, target_rr_count)
+                            p1::DualVector,
+                            excluded_inds::Vector{Int}=Int[]) where C
 
     M = MCI(V, A)
     wd = WalkData(M, [MixedCell(m, M) for m in ms], p0, p1)
-    cnt_reached, t_cross = walk_homotopy!(wd, rr_counter = rr_counter)
-    return cnt_reached, t_cross, gather_mixed_cells(wd)
+    walk_homotopy!(wd)
+    return gather_mixed_cells(wd, excluded_inds)
 end
 
 function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem}, d::Vector{Int})
