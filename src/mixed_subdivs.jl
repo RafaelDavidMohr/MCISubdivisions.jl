@@ -96,7 +96,7 @@ function mixed_cell_flip!(mtbl::CellTable,
     Ss_new = Tuple{Int, Vector{Int}}[]
     F = prime_field_V(M)
     @inbounds for (k, i) in enumerate(m.inds[ai])
-        iszero(c.cfs[i]) && continue # correct?
+        iszero(c.cfs[i]) && continue
         S_new = exchange(M.V, m.inds, ai, k, new_inds)
         if partial_sum_sign(S_new, c)
             push!(Ss_new, (k, S_new))
@@ -108,32 +108,48 @@ function mixed_cell_flip!(mtbl::CellTable,
         sort!(S_new)
         S_new_next = sort(setdiff(inds, S_new))
         next_ind = is_exchange(c) ? ai + 1 : ai + 2
-        new_m_inds = if length(S_new_next) > 1
+        is_split = length(S_new_next) > 1
+        is_simple_exchange = is_exchange(c) && !is_split
+
+        new_m_inds = if is_split
             @inbounds [m.inds[1:ai-1]..., S_new, S_new_next, m.inds[next_ind:end]...]
         else
             @inbounds [m.inds[1:ai-1]..., S_new, m.inds[next_ind:end]...]
         end
-        if is_affine_independent(M.A, new_m_inds)
-            is_simple_exchange = is_exchange(c) && length(S_new_next) <= 1
-            new_tbl = if is_simple_exchange
-                @inbounds si = m.inds[ai][k]
-                @inbounds l = findfirst(ind -> ind == ei, m.loc_inds[ai])
-                @inbounds new_loc_inds = copy(m.loc_inds[ai])
-                @inbounds new_loc_inds[l] = si
-                sort!(new_loc_inds)
-                @inbounds new_m = MixedCell(new_m_inds, [i == ai ? new_loc_inds : m.loc_inds[i] for i in 1:length(m.inds)])
-                new_m in wd.cells.seen && continue
-                walls, i_min, t_min = new_cell_simple_exchange(mtbl, k, new_m)
-                CellTable(new_m, walls, i_min, t_min)
-            else
-                new_m = MixedCell(new_m_inds, M)
-                new_m in wd.cells.seen && continue
-                t_last = cross_val_from_dp(c.dot0, c.dot1)
-                walls, i_min, t_min = compute_active_walls!(new_m, M, wd.p0, wd.p1, t_last)
-                CellTable(new_m, walls, i_min, t_min)
+
+        MixedCell(new_m_inds, Vector{Int}[]) in wd.cells.seen && continue # this trick should work because of how we are hashing
+        !is_affine_independent(M.A, new_m_inds) && continue
+
+        new_loc_inds = if is_simple_exchange
+            @inbounds si = m.inds[ai][k]
+            @inbounds l = findfirst(ind -> ind == ei, m.loc_inds[ai])
+            @inbounds new_loc_inds_ai = copy(m.loc_inds[ai])
+            @inbounds new_loc_inds_ai[l] = si
+            sort!(new_loc_inds_ai)
+            @inbounds [i == ai ? new_loc_inds_ai : m.loc_inds[i] for i in 1:length(m.inds)]
+        else
+            known = @inbounds Dict([(i, m.loc_inds[i]) for i in 1:ai-1])
+            shft = is_exchange(c) ? 0 : 1
+            shft = is_split ? shft + 1 : shft
+            for i in next_ind:length(m.inds)
+                known[i + shft] = @inbounds m.loc_inds[i]
             end
-            push!(new_cell_tables, new_tbl)
+            find_loc_indices!(M, new_m_inds, known)
         end
+
+        @assert length(new_loc_inds) == length(new_m_inds)
+        new_m = MixedCell(new_m_inds, new_loc_inds)
+
+        new_tbl = if is_simple_exchange
+            walls, i_min, t_min = new_cell_simple_exchange(mtbl, k, new_m)
+            CellTable(new_m, walls, i_min, t_min)
+        else
+            t_last = cross_val_from_dp(c.dot0, c.dot1)
+            walls, i_min, t_min = compute_active_walls!(new_m, M, wd.p0, wd.p1,
+                                                        t_last)
+            CellTable(new_m, walls, i_min, t_min)
+        end
+        push!(new_cell_tables, new_tbl)
     end
     return new_cell_tables
 end

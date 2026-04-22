@@ -1,9 +1,17 @@
 # --- mixed cells --- #
 
-function MixedCell(inds::MixedCellInds, M::MCI)
+function MixedCell(inds::MixedCellInds, M::MCI,
+                   known::Dict{Int, Vector{Int}}=Dict{Int, Vector{Int}}())
+
     for ind in inds
         sort!(ind)
     end
+    return MixedCell(inds, find_loc_indices!(M, inds, known))
+end
+
+function find_loc_indices!(M::MCI, inds::MixedCellInds,
+                           known::Dict{Int, Vector{Int}})
+
     loc_inds = Vector{Int}[]
     rem_inds = indices(M)
     all_m_inds = Int[]
@@ -14,15 +22,16 @@ function MixedCell(inds::MixedCellInds, M::MCI)
         all_m_inds = vcat(all_m_inds, inds[i])
         rk += length(inds[i]) - 1
         loc_inds_i = if i != k
-            find_loc_indices!(M, all_m_inds, rem_inds, rk)
+            get(known, i) do
+                find_loc_indices!(M, all_m_inds, rem_inds, rk)
+            end
         else
             copy(rem_inds)
         end
-        sort!(loc_inds_i)
         push!(loc_inds, loc_inds_i)
         setdiff!(rem_inds, loc_inds_i)
     end
-    return MixedCell(inds, loc_inds)
+    return loc_inds
 end
 
 function find_loc_indices!(M::MCI, inds::Vector{Int}, test_inds::Vector{Int},
@@ -34,7 +43,7 @@ function find_loc_indices!(M::MCI, inds::Vector{Int}, test_inds::Vector{Int},
             push!(res, i)
         end
     end
-    return res
+    return sort(res)
 end
 
 function vol(m::MixedCell, A::Matrix{Int})
@@ -295,6 +304,12 @@ function specialize(F::Vector{<:MPolyRingElem},
     return phi.(F)
 end
 
+function eci_from_odebase(ode_filename, constr_filename)
+    vrs, prms, rhs = parse_ode_system_manual(ode_filename, constr_filename)
+    ss = create_steady_state(vrs, prms, rhs)
+    return make_eci(ss)
+end
+
 # Functions to parse sage files from odebase.org
 function parse_ode_system_manual(ode_filename, constr_filename)
     ode_content = read(ode_filename, String)
@@ -306,7 +321,7 @@ function parse_ode_system_manual(ode_filename, constr_filename)
     for m in eachmatch(ode_pattern, ode_content)
         rhs = strip(m.captures[1])
         rhs = replace(rhs, r"\s*\)\s*$" => "")
-        push!(ode_rhs_list, rhs)
+        push!(ode_rhs_list, "R(" * rhs * ")")
     end
     
     constr_content = read(constr_filename, String)
@@ -321,7 +336,7 @@ function parse_ode_system_manual(ode_filename, constr_filename)
         lhs = strip(m.captures[1])
         c_param = "c_$i"
         push!(c_params, c_param)
-        push!(constr_rhs_list, "($lhs) - $c_param")
+        push!(constr_rhs_list, "R(" * "($lhs) - $c_param" * ")")
         i += 1
     end
     
@@ -355,7 +370,7 @@ function create_steady_state(x_vars, params, rhs)
     end
     eval(poly_ring_expr)
 
-    eqns = [R(eval(Meta.parse(eqn))) for eqn in rhs]
+    eqns = [eval(Meta.parse(eqn)) for eqn in rhs]
     return eqns
 end
 
