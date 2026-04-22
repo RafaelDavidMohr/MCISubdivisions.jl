@@ -171,30 +171,20 @@ is_exchange(c::Hyperplane) = !iszero(c.exchange_index)
 
 # --- MCI --- #
 
-struct MCI
-    V::Matrix{FqFieldElem} # stored over random finite field to speed up computations
+struct MCI{C}
+    V::Matrix{C}
     A::Matrix{Int}
     rank_cache::Dict{Vector{Int}, Int}
 
-    function MCI(V::Matrix{FqFieldElem}, A::Matrix{Int})
+    function MCI{C}(V::Matrix{C}, A::Matrix{Int}) where C
         @assert size(V, 2) == size(A, 2) "number of coefficients and monomials does not match."
-        F = parent(first(V))
-        R = echelon_form(matrix(F, V))
-        return new(Matrix(R), A, Dict{Vector{Int}, Int}())
+        return new(V, A, Dict{Vector{Int}, Int}())
     end
 end
 
-function MCI(V::Matrix{C}, A::Matrix{Int64}) where C
-    Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
-    F = parent(first(Vp))
-    rand_mix = matrix(F, (F).(rand(1:characteristic(F)-1, size(V, 1), size(V, 1))))
-    
-    return MCI(Matrix(rand_mix * matrix(F, Vp)), A)
-end
+MCI(V::Matrix{C}, A::Matrix{Int}) where C = MCI{C}(V, A) # is this really needed?
 
 indices(M::MCI) = collect(1:size(M.A, 2))
-
-prime_field_V(M::MCI) = parent(first(M.V))
 
 function ambient_dim(M::MCI)
     return size(M.A, 1)
@@ -202,9 +192,9 @@ end
 
 function rank!(M::MCI, inds::Vector{Int})
     return get(M.rank_cache, inds) do
-        rk = rank(matrix(prime_field_V(M), M.V[:, inds]))
-        M.rank_cache[inds] = rk
-        rk
+        rki = rk(M.V[:, inds])
+        M.rank_cache[inds] = rki
+        rki
     end
 end
 
@@ -236,8 +226,8 @@ is_finished(mtbl::CellTable) = iszero(mtbl.i_min)
 
 # --- WalkData --- # 
 
-mutable struct WalkData{T}
-    M::MCI
+mutable struct WalkData{C, T}
+    M::MCI{C}
     cells::MinExtractor{CellTable{T}}
     finished_cells::Set{MixedCellInds}
     p0::DualVector{T}

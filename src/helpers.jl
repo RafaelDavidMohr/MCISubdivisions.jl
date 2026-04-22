@@ -82,6 +82,26 @@ end
 
 # --- matrix --- #
 
+# returns only first kernel element, hopefully reliable
+function krnel_nz_entries(V::Matrix{Int}, indmax::Int;
+                          tol = 1e-8)
+    k = nullspace(V)[:, 1]
+    return findall(j -> abs(k[j]) > tol, 1:indmax)
+end
+
+function krnel_nz_entries(V::Matrix{FqFieldElem}, indmax::Int)
+    F = parent(first(V))
+    K = kernel(matrix(F, V), side = :right)[:, 1]
+    return findall(j -> !iszero(K[j]), 1:indmax)
+end
+
+rk(V::Matrix{Int}) = rank(V)
+
+function rk(V::Matrix{FqFieldElem})
+    F = parent(first(V))
+    return rank(matrix(F, V))
+end
+
 function reduce_mod_rand_prime(V::Matrix{QQFieldElem})
     p = Hecke.rand_bits_prime(ZZ, 31)
     F = GF(p)
@@ -240,8 +260,17 @@ end
 
 function get_eci_data(F::Vector{<:MPolyRingElem})
     A = get_support(F)
-    CT = eltype(base_ring(parent(first(F))))
-    V = [coeff(f, A[:, i]) for f in F, i in 1:size(A, 2)]
+    return A, [coeff(f, A[:, i]) for f in F, i in 1:size(A, 2)]
+end
+
+function get_eci_data(F::Vector{QQMPolyRingElem})
+    A = get_support(F)
+    Vcfs = [coeff(f, A[:, i]) for f in F, i in 1:size(A, 2)]
+    V = try
+        Int.(Vcfs)
+    catch
+        "Only integer or finite field coefficients supported."
+    end
     return A, V
 end
 
@@ -288,7 +317,7 @@ function get_A_disc_equations(A::Matrix{Int}, dehom=1)
     R, vars = polynomial_ring(QQ, vcat(["x$i" for i in 1:d], ["z$i" for i in 1:(n-1)]))
     x = vars[1:d]
     z = vars[d+1:end]
-    s = sum(rand(-1000:1000)*prod(map((i,j) -> i^j, vars, A_lift[:,k])) for k in 1:n)
+    s = sum(prod(map((i,j) -> i^j, vars, A_lift[:,k])) for k in 1:n)
     fs = [s; [v*derivative(s, v) for v in x]]
     return fs
 end

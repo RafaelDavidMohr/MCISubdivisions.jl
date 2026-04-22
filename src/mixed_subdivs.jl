@@ -32,29 +32,33 @@ function deform_subdivision(A::Matrix{Int}, V::Matrix{C},
     return gather_mixed_cells(wd, excluded_inds)
 end
 
-function starting_system(A::Matrix{Int}, V::Matrix{FqFieldElem}, d::Vector{T}) where T
+function starting_system(A::Matrix{Int}, V::Matrix{C}, d::Vector{T}) where {C, T}
     n = size(A, 1)
     A_size = size(A, 2)
     no_multiset = allunique(i -> A[:, i], 1:A_size)
 
     # extended MCI
-    F = parent(first(V))
     p_start = rand(-LSIZE:LSIZE, A_size)
     col_inds = select_max_weight_columns(A, p_start)
     sd = @inbounds subdivision_of_points(transpose(A[:, col_inds]), -p_start[col_inds])
     A_start = copy(A)
-    V_start = rand_arr_ff(F, n, A_size)
+    V_start = if C <: FqFieldElem
+        F = parent(first(V))
+        rand_arr_ff(F, n, A_size)
+    else
+        rand(-1000:1000, n, A_size)
+    end
     init_mc = @inbounds [[col_inds[c]] for c in maximal_cells(sd)]
 
     return homotopy(A, V, A_start, V_start, init_mc, T.(p_start), d)
 end
 
 # works only if conv(A_target) ⊆ conv(A_start)
-function homotopy(A_target::Matrix{Int}, V_target::Matrix{FqFieldElem},
-                  A_start::Matrix{Int}, V_start::Matrix{FqFieldElem},
+function homotopy(A_target::Matrix{Int}, V_target::Matrix{C},
+                  A_start::Matrix{Int}, V_start::Matrix{C},
                   ms_start::Vector{MixedCellInds},
                   p_start::Vector{<:Integer},
-                  p_target::Vector{<:Integer})
+                  p_target::Vector{<:Integer}) where C
 
     A_ext = hcat(A_target, A_start)
     V_ext = hcat(V_target, V_start)
@@ -94,7 +98,6 @@ function mixed_cell_flip!(mtbl::CellTable,
     M = wd.M
     
     Ss_new = Tuple{Int, Vector{Int}}[]
-    F = prime_field_V(M)
     @inbounds for (k, i) in enumerate(m.inds[ai])
         iszero(c.cfs[i]) && continue
         S_new = exchange(M.V, m.inds, ai, k, new_inds)
@@ -157,17 +160,14 @@ end
 function exchange(V::Matrix{C}, m::MixedCellInds,
                   act_index::Int, k::Int,
                   new_inds::Vector{Int}) where C
-    
+
     @inbounds candidate_indices = vcat(m[act_index][1:k-1], m[act_index][k+1:end],
                                        new_inds)
     @inbounds V_trunc_inds = vcat(candidate_indices,
                                   [idx[2:end] for idx in m[1:act_index-1]]...)
     @inbounds V_trunc = V[:, V_trunc_inds]
-    F = parent(first(V))
-    K = kernel(matrix(F, V_trunc), side = :right)
-    @assert isone(size(K, 2))
     cl = length(candidate_indices)
-    return @inbounds candidate_indices[findall(j -> !iszero(K[j, :]), 1:cl)]
+    return @inbounds candidate_indices[krnel_nz_entries(V_trunc, cl)]
 end
 
 function new_cell_simple_exchange(mtbl::CellTable{T},

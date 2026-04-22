@@ -11,7 +11,7 @@ function dehomogenize(eqns, i)
 end
 
 # debox
-R, (a_1,a_2,a_3,a_4,a_5,M,m,s,t) = polynomial_ring(GF(65521), vcat(["a_$i" for i in 1:5], ["M", "m", "s", "t"])) 
+R, (a_1,a_2,a_3,a_4,a_5,M,m,s,t) = polynomial_ring(QQ, vcat(["a_$i" for i in 1:5], ["M", "m", "s", "t"])) 
 U_debox = a_1*a_4 + a_2*a_4 + a_3*a_4 + a_1*a_5 + a_2*a_5 + a_3*a_5 + a_4*a_5;
 F0 = M*a_1*a_2*a_4 + s*a_1*a_3*a_4 + M*a_2*a_3*a_4 + M*a_1*a_2*a_5 + s*a_1*a_3*a_5 + M*a_2*a_3*a_5 + M*a_1*a_4*a_5 + t*a_2*a_4*a_5 + M*a_3*a_4*a_5;
 F = F0 - m*U_debox*(a_1+a_2+a_3+a_4+a_5);

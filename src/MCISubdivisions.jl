@@ -40,8 +40,9 @@ end
 function mixed_subdivision(A::Matrix{Int}, V::Matrix{C},
                            d::Vector{T}) where {C, T}
     
-    Vp = C <: FqFieldElem ? V : reduce_mod_rand_prime(V)
-    wd = starting_system(A, Vp, d)
+    @assert C <: Int || C <: FqFieldElem "Only integer of finite field coefficients supported"
+
+    wd = starting_system(A, V, d)
 
     walk_homotopy!(wd)
 
