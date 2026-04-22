@@ -15,19 +15,35 @@ export mixed_volume, mixed_subdivision, get_eliminant_polytope, get_A_disc_equat
 
 # --- Main functions --- #
 
-function mixed_volume(F::Vector{<:MPolyRingElem}; lift_type = Int)
+function mixed_volume(F::Vector{<:MPolyRingElem}; lift_type = Int, arithmetic = :ff)
     R = parent(first(F))
     @assert ngens(R) == length(F) "Input system not square"
     A, V = get_eci_data(F)
-    return mixed_volume(A, V, lift_type = lift_type)
+    if arithmetic == :ff
+        Vp = typeof(first(F)) <: FqMPolyRingElem ? V : reduce_mod_rand_prime(V)
+        return mixed_volume(A, Vp, lift_type = lift_type)
+    elseif arithmetic == :float
+        return mixed_volume(A, V, lift_type = lift_type)
+    else
+        error("unrecognized keyword value $(arithmetic)")
+    end
 end
 
-function mixed_subdivision(F::Vector{<:MPolyRingElem}; lift_type = Int)
+function mixed_subdivision(F::Vector{<:MPolyRingElem};
+                           lift_type = Int, arithmetic = :ff)
+    
     R = parent(first(F))
     @assert ngens(R) == length(F) "Input system not square"
     A, V = get_eci_data(F)
     d = lift_type.(rand(-LSIZE:LSIZE, size(A, 2)))
-    return A, mixed_subdivision(A, V, d)[2]
+    if arithmetic == :ff
+        Vp = typeof(first(F)) <: FqMPolyRingElem ? V : reduce_mod_rand_prime(V)
+        return A, mixed_subdivision(A, Vp)[2]
+    elseif arithmetic == :float
+        return A, mixed_subdivision(A, V)[2]
+    else
+        error("unrecognized keyword value $(arithmetic)")
+    end
 end
 
 function mixed_volume(A::Matrix{Int}, V::Matrix{C}; lift_type = Int) where C
