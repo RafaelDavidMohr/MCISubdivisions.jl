@@ -1,6 +1,8 @@
 using MCISubdivisions
 using Oscar
 
+# example from [Gro+16]
+
 function specialize(F::Vector{<:MPolyRingElem}, choice_of_parameters::Vector{<:Union{Int, RingElem}})
     Kax = parent(first(F))
     Ka = coefficient_ring(Kax)
@@ -9,17 +11,11 @@ function specialize(F::Vector{<:MPolyRingElem}, choice_of_parameters::Vector{<:U
     phi = hom(Kax, Kx, c -> evaluate(c, choice_of_parameters), x)
     return phi.(F)
 end
-
-# Chemical reaction network example
-
-# Define ring of parameters
 A, (k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11, k12, k13, k14, k15, k16, k17, k18, k19, k20, k21, k22, k23, k24, k25, k26, k27, k28, k29, k30, k31, c1, c2, c3, c4, c5) =
     polynomial_ring(QQ, ["k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9", "k10", "k11", "k12", "k13", "k14", "k15", "k16", "k17", "k18", "k19", "k20", "k21", "k22", "k23", "k24", "k25", "k26", "k27", "k28", "k29", "k30", "k31", "c1", "c2", "c3", "c4", "c5"]);
 
-# Define ring of parameterized polynomials
 B, (x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19) = polynomial_ring(A, ["x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11", "x12", "x13", "x14", "x15", "x16", "x17", "x18", "x19"]);
 
-# Define the square(!) system of steady state equations and conservation laws
 steadyStateEqs = [
     -k1 * x1 + k2 * x2, # x1
     k1 * x1 - (k2 + k26) * x2 + k27 * x3 - k3 * x2 * x4 + (k4 + k5) * x14, # x2
@@ -51,8 +47,6 @@ conservationLaws = [
 system = vcat([steadyStateEq for (i, steadyStateEq) in enumerate(steadyStateEqs) if i ∉ [3, 4, 8, 9, 12]],
     conservationLaws)
 
-# Make a choice of parameters
 number_of_parameters = ngens(coefficient_ring(parent(first(system))))
-#target_parameters = collect(1:number_of_parameters)
 target_parameters = rand(1:100, number_of_parameters)
 target_system = specialize(system, target_parameters)
