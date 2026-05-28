@@ -120,6 +120,10 @@ function Base.isless(a::DualNumber, b::DualNumber)
     end
 end
 
+function eval_dual(a::DualNumber; einv = 10000)
+    return Float64(a.r) + 1/einv * Float64(a.eps)
+end
+
 # --- Lift --- #
 
 const LSIZE = 50000

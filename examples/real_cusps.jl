@@ -10,10 +10,8 @@ m = ideal(R, gens(R))
 f = sum([rand([-1,1])*mon for i in 0:d for mon in gens(m^i)])
 F = [f, x*derivative(f, x), x^2*derivative(derivative(f, x), x)]
 A, V = MCIS.get_eci_data(F)
-rand_mix = matrix(QQ, (QQ).(rand(-1000:1000, size(V, 1), size(V, 1))))
-V = Matrix(rand_mix * matrix(QQ, V))
-p, ms = mixed_subdivision(A, V)
-sum([MCIS.vol(m, A) for m in ms])
+d_init = rand(-50000:50000, size(A, 2))
+p, ms = mixed_subdivision(A, V, d_init)
 
 function random_lift(l)
     a = randn(l)
@@ -31,13 +29,13 @@ while true
     reached, t_cross, ms = with_logger(NullLogger()) do
         MCIS.deform_subdivision(A, V, ms, p, p_new, 24)
     end
-    rr = sum([MCIS.msolve_real_root_count(m, A, V) for m in ms])
+    rr = sum([MCIS.real_root_count(m, A, V) for m in ms])
     if rr > max_rr
         max_rr = rr
         println("$(max_rr) real roots after deformation")
     end
     if reached
-        println("24 real roots!!")
+        println("24 real roots!")
         break
     end
     p = p_new

@@ -35,7 +35,6 @@ end
 function starting_system(A::Matrix{Int}, V::Matrix{C}, d::Vector{T}) where {C, T}
     n = size(A, 1)
     A_size = size(A, 2)
-    no_multiset = allunique(i -> A[:, i], 1:A_size)
 
     # extended MCI
     p_start = rand(-LSIZE:LSIZE, A_size)
