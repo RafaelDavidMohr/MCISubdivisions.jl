@@ -3,7 +3,7 @@
 function walk_homotopy!(w::WalkData)
 
     p0, p1 = w.p0, w.p1
-    if p0.r == p1.r && p0.eps == p1.eps
+    if p0 == p1
         @info "no deformation, nothing to do"
         return
     end

@@ -188,18 +188,6 @@ function partial_sum_sign(inds::Vector{Int}, c::Hyperplane)
     return res != 0 && (c.sgn ? res > 0 : res < 0) # TODO: check if 0 is allowed here
 end
 
-function LinearAlgebra.dot(v::Vector{Int}, c::Hyperplane{T}) where T
-    return (T).(dot(v, c.cfs))
-end
-
-function LinearAlgebra.dot(l::DualVector{T}, c::SparseVector{Int, Int}) where T
-    return DualNumber(T(dot(l.r, c)), T(dot(l.eps, c)))
-end
-
-function LinearAlgebra.dot(l::DualVector, c::Hyperplane)
-    return DualNumber(dot(l.r, c), dot(l.eps, c))
-end
-
 # --- homotopy paths --- #
     
 function crossing_val(l0::DualVector, l1::DualVector, c::SparseVector{Int, Int})
@@ -250,7 +238,7 @@ function forgetful_lift(A_size::Int, forget_inds::Vector{Int},
             cnt += 1
         end
     end
-    return DualVector(d, d_eps_new)
+    return [DualNumber(dd, dd_eps) for (dd, dd_eps) in zip(d, d_eps_new)]
 end
 
 function get_support(F::Vector{<:MPolyRingElem})

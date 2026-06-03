@@ -75,10 +75,12 @@ end
 function Base.zero(::Type{DualNumber{T}}) where T
     return DualNumber{T}(0, 0)
 end
+Base.zero(::DualNumber{T}) where T = zero(DualNumber{T})
 
 function Base.one(::Type{DualNumber{T}}) where T
     return DualNumber{T}(1, 0)
 end
+Base.one(::DualNumber{T}) where T = one(DualNumber{T})
 
 function Base.:(+)(a::DualNumber, b::DualNumber)
     return DualNumber(a.r + b.r, a.eps + b.eps)
@@ -109,6 +111,10 @@ function Base.inv(a::DualNumber)
     return DualNumber(a.r^(-1), -(a.eps*a.r^(-2)))
 end
 
+LinearAlgebra.dot(a::DualNumber, b::DualNumber) = a * b
+LinearAlgebra.dot(a::Integer, b::DualNumber) = a * b
+LinearAlgebra.dot(a::DualNumber, b::Integer) = b * a
+
 function Base.isless(a::DualNumber, b::DualNumber)
 
     if a.r != b.r
@@ -128,18 +134,10 @@ end
 
 const LSIZE = 50000
 
-struct DualVector{T<:Integer}
-    r::Vector{T}
-    eps::Vector{T}
-end
+const DualVector{T} = Vector{DualNumber{T}} 
 
 function DualVector(r::Vector{<:Integer})
-    l = length(r)
-    return DualVector(r, rand(-LSIZE:LSIZE, l))
-end
-
-function test_vector(l::DualVector; rat=10000)
-    return rat*l.r + l.eps
+    return [DualNumber(ri, rand(-LSIZE:LSIZE)) for ri in r]
 end
 
 # --- Hyperplane --- #
@@ -172,6 +170,9 @@ function Base.:(==)(c1::Hyperplane, c2::Hyperplane)
 end
 
 is_exchange(c::Hyperplane) = !iszero(c.exchange_index)
+
+LinearAlgebra.dot(v::Vector, c::Hyperplane) = dot(v, c.cfs)
+LinearAlgebra.dot(c::Hyperplane, v::Vector) = dot(v, c.cfs)
 
 # --- MCI --- #
 

@@ -64,7 +64,7 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C},
 
     p1 = wd.p1
     A_size = size(A, 2)
-    return DualVector(p1.r[1:A_size], p1.eps[1:A_size]), gather_mixed_cells(wd, A_size)
+    return p1[1:A_size], gather_mixed_cells(wd, A_size)
 end
 
 function real_root_count(A::Matrix{Int}, V::Matrix{QQFieldElem}, ms::Vector{MixedCellInds})
