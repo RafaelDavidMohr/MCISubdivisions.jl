@@ -106,11 +106,14 @@ function Base.:(/)(a::DualNumber, b::Integer)
     return DualNumber(a.r / b, a.eps / b)
 end
 
+isinvertible(a::DualNumber) = !iszero(a.r)
+
 function Base.inv(a::DualNumber)
     iszero(a.r) && error("not invertible")
     return DualNumber(a.r^(-1), -(a.eps*a.r^(-2)))
 end
 
+# needed to compute dot products of vectors
 LinearAlgebra.dot(a::DualNumber, b::DualNumber) = a * b
 LinearAlgebra.dot(a::Integer, b::DualNumber) = a * b
 LinearAlgebra.dot(a::DualNumber, b::Integer) = b * a
@@ -142,27 +145,28 @@ end
 
 # --- Hyperplane --- #
 
-struct Hyperplane{T}
-    cfs::SparseVector{Int, Int}
+struct Hyperplane{S, T}
+    cfs::SparseVector{S, Int}
     dot0::DualNumber{T}
     dot1::DualNumber{T}
     act_index::Int
     sgn::Bool
     exchange_index::Int
 
-    function Hyperplane{T}(cfs::SparseVector{Int, Int},
-                           dot0::DualNumber{T}, dot1::DualNumber{T},
-                           act_index::Int, sgn::Bool, exchange_index::Int) where T
+    # this may be needed if entries get too large
+    # function Hyperplane{T}(cfs::SparseVector{Int, Int},
+    #                        dot0::DualNumber{T}, dot1::DualNumber{T},
+    #                        act_index::Int, sgn::Bool, exchange_index::Int) where T
         
-        g = gcd(cfs)
-        if g != 1
-            cfs .÷= g
-            dot0 /= g
-            dot1 /= g
-            sgn = g < 0 ? !sgn : sgn 
-        end
-        return new(cfs, dot0, dot1, act_index, sgn, exchange_index)
-    end
+    #     g = gcd(cfs)
+    #     if g != 1
+    #         cfs .÷= g
+    #         dot0 /= g
+    #         dot1 /= g
+    #         sgn = g < 0 ? !sgn : sgn 
+    #     end
+    #     return new(cfs, dot0, dot1, act_index, sgn, exchange_index)
+    # end
 end
 
 function Base.:(==)(c1::Hyperplane, c2::Hyperplane)

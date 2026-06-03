@@ -188,8 +188,7 @@ function new_cell_simple_exchange(mtbl::CellTable{T},
         l1, l2 = if iszero(co.cfs[si]) || i == mtbl.i_min
             1, 0
         else
-            l = lcm(c.cfs[si], co.cfs[si])
-            div(l, co.cfs[si]), div(l, c.cfs[si]) # should always be ≠ 0
+            zero_coefficients(co.cfs[si], c.cfs[si])
         end
         cfs_new = l1*co.cfs - l2*c.cfs
         dco0, dco1 = co.dot0, co.dot1
@@ -268,7 +267,7 @@ function add_hyperplane!(walls::Vector{Hyperplane{T}},
                          dc1::DualNumber) where T
 
     @inbounds sgn = signbit(partial_sum(m[ai], cfs))
-    c_new = Hyperplane{T}(cfs, dc0, dc1, ai, sgn, ei)
+    c_new = Hyperplane(cfs, dc0, dc1, ai, sgn, ei)
     t_c = cross_val_from_dp(c_new.dot0, c_new.dot1)
     push!(walls, c_new)
     if t_c <= t_last || one(DualNumber{T}) < t_c || t_c > t_min

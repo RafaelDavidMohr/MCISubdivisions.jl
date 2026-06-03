@@ -210,6 +210,18 @@ end
 
 # --- other helpers --- #
 
+# find c, d such that c*a - d*b = 0
+function zero_coefficients(a::Integer, b::Integer)
+    l = lcm(a, b)
+    return div(l, a), div(l, b)
+end
+
+function zero_coefficients(a::DualNumber{T}, b::DualNumber{T}) where T
+    isinvertible(a) && return b*inv(a), one(a)
+    isinvertible(b) && return one(a), a*inv(b)
+    return DualNumber(b.eps, 0), DualNumber(a.eps, 0)
+end
+
 function forgetful_lift(A_size::Int, forget_inds::Vector{Int}, ::T) where T
     d = Vector{T}(undef, A_size)
     @inbounds for i in 1:A_size
