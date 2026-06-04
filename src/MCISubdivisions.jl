@@ -15,46 +15,33 @@ export mixed_volume, mixed_subdivision, real_root_count, get_eliminant_polytope,
 
 # --- Main functions --- #
 
-function mixed_volume(F::Vector{<:MPolyRingElem}; lift_type = Int, arithmetic = :ff)
+function mixed_volume(F::Vector{<:MPolyRingElem})
     R = parent(first(F))
     @assert ngens(R) == length(F) "Input system not square"
     A, V = get_eci_data(F)
-    if arithmetic == :ff
-        Vp = typeof(first(F)) <: FqMPolyRingElem ? V : reduce_mod_rand_prime(V)
-        return mixed_volume(A, Vp, lift_type = lift_type)
-    elseif arithmetic == :float
-        return mixed_volume(A, V, lift_type = lift_type)
-    else
-        error("unrecognized keyword value $(arithmetic)")
-    end
+    Vp = typeof(first(F)) <: FqMPolyRingElem ? V : reduce_mod_rand_prime(V)
+    return mixed_volume(A, Vp)
 end
 
-function mixed_subdivision(F::Vector{<:MPolyRingElem};
-                           lift_type = Int, arithmetic = :ff)
+function mixed_subdivision(F::Vector{<:MPolyRingElem})
     
     R = parent(first(F))
     @assert ngens(R) == length(F) "Input system not square"
     A, V = get_eci_data(F)
-    d = lift_type.(rand(-LSIZE:LSIZE, size(A, 2)))
-    if arithmetic == :ff
-        Vp = typeof(first(F)) <: FqMPolyRingElem ? V : reduce_mod_rand_prime(V)
-        return A, mixed_subdivision(A, Vp, d)[2]
-    elseif arithmetic == :float
-        return A, mixed_subdivision(A, V, d)[2]
-    else
-        error("unrecognized keyword value $(arithmetic)")
-    end
+    d = rand(-LSIZE:LSIZE, size(A, 2))
+    Vp = typeof(first(F)) <: FqMPolyRingElem ? V : reduce_mod_rand_prime(V)
+    return A, mixed_subdivision(A, Vp, d)[2]
 end
 
-function mixed_volume(A::Matrix{Int}, V::Matrix{C}; lift_type = Int) where C
+function mixed_volume(A::Matrix{Int}, V::Matrix{C}) where C
 
-    d = lift_type.(rand(-LSIZE:LSIZE, size(A, 2)))
+    d = rand(-LSIZE:LSIZE, size(A, 2))
     _, cells = mixed_subdivision(A, V, d)
     return sum([vol(m, A) for m in cells])
 end
 
 function mixed_subdivision(A::Matrix{Int}, V::Matrix{C},
-                           d::Vector{T}) where {C, T}
+                           d::Vector{Int}) where C
     
     @assert C <: Int || C <: FqFieldElem "Only integer of finite field coefficients supported"
 

@@ -179,66 +179,46 @@ end
 
 # --- circuits --- #
 
-function partial_sum(inds::Vector{Int}, c::SparseVector{Int, Int})
+function partial_sum(inds::Vector{Int}, c::SparseVector{T, Int}) where T
     return @inbounds sum(c[inds])
 end
 
 function partial_sum_sign(inds::Vector{Int}, c::Hyperplane)
+    resP = partial_sum(inds, c.cfs_modP)
+    iszero(resP) && return false
     res = partial_sum(inds, c.cfs)
-    return res != 0 && (c.sgn ? res > 0 : res < 0) # TODO: check if 0 is allowed here
+    return c.sgn ? res > 0 : res < 0 # TODO: check if 0 is allowed here
 end
 
 # --- homotopy paths --- #
     
-function crossing_val(l0::DualVector, l1::DualVector, c::SparseVector{Int, Int})
-    l0d = dot(l0, c)
-    l1d = dot(l1, c)
-    return l0d, l1d, cross_val_from_dp(l0d, l1d)
-end
+function cross_val(c::Hyperplane)
+    l0d = c.dot0
+    l1d = c.dot1
+    l0dP = c.dot0_modP
+    l1dP = c.dot1_modP
 
-function cross_val_from_dp(l0d::DualNumber{T}, l1d::DualNumber{T}) where T
     denom = l0d - l1d
+    denomP = l0dP - l1dP
 
-    if iszero(l0d.r) && iszero(l1d.r)
-        return DualNumber{T}(l0d.eps * denom.eps^(-1), zero(T))
+    a, b = if iszero(l0dP.r) && iszero(l1dP.r)
+        DualNumber(l0d.eps * Base.inv(denom.eps), 0.0), DualNumber(l0dP.eps * Base.inv(denomP.eps), zero(FPNum))
     elseif iszero(denom.r)
-        return DualNumber{T}(T(2), zero(T))
+        DualNumber(2.0, 0.0), DualNumber(FPNum(2), zero(FPNum))
     else
-        return l0d * inv(denom)
+        l0d * inv(denom), l0dP * inv(denomP)
     end
+
+    return OrderDual(a, b)
 end
 
 # --- other helpers --- #
 
-# find c, d such that c*a - d*b = 0
-function zero_coefficients(a::Integer, b::Integer)
-    l = lcm(a, b)
-    return div(l, a), div(l, b)
-end
-
-function zero_coefficients(a::DualNumber{T}, b::DualNumber{T}) where T
-    isinvertible(a) && return b*inv(a), one(a)
-    isinvertible(b) && return one(a), a*inv(b)
-    return DualNumber(b.eps, 0), DualNumber(a.eps, 0)
-end
-
-function forgetful_lift(A_size::Int, forget_inds::Vector{Int}, ::T) where T
-    d = Vector{T}(undef, A_size)
-    @inbounds for i in 1:A_size
-        if i in forget_inds
-            d[i] = 0
-        else
-            d[i] = 1
-        end
-    end
-    return DualVector(d)
-end
-
 function forgetful_lift(A_size::Int, forget_inds::Vector{Int},
-                        d_eps::Vector{T}) where T
+                        d_eps::Vector{Int})
 
-    d = Vector{T}(undef, A_size)
-    d_eps_new = Vector{T}(undef, A_size)
+    d = Vector{Int}(undef, A_size)
+    d_eps_new = Vector{Int}(undef, A_size)
     cnt = 1
     @inbounds for i in 1:A_size
         if i in forget_inds

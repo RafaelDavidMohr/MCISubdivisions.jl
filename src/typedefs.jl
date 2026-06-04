@@ -57,14 +57,42 @@ end
 
 # --- Dual Number --- #
 
-struct DualNumber{T}
-    r::Rational{T}
-    eps::Rational{T}
+const PRIME = 2^31 - 1
+
+struct FPNum
+    x::Int
 end
 
-DualNumber(r::T, b::T) where T = DualNumber{T}(r//1, b//1)
+Base.zero(::Type{FPNum}) = FPNum(0)
+Base.zero(::FPNum)= zero(FPNum)
+Base.iszero(a::FPNum) = iszero(a.x)
+Base.one(::Type{FPNum}) = FPNum(1)
+Base.one(::FPNum) = one(FPNum)
 
-function Base.show(io::IO, a::DualNumber)
+Base.:(+)(a::FPNum, b::FPNum) = FPNum(mod(a.x + b.x, PRIME))
+Base.:(-)(a::FPNum, b::FPNum) = FPNum(mod(a.x + (PRIME - b.x), PRIME))
+Base.:(-)(a::FPNum) = FPNum(PRIME - a.x)
+Base.:(*)(a::FPNum, b::FPNum) = FPNum(mod(a.x * b.x, PRIME))
+Base.:(*)(a::Integer, b::FPNum) = FPNum(mod(a * b.x, PRIME))
+Base.:(*)(a::FPNum, b::Integer) = b * a
+Base.inv(a::FPNum) = FPNum(invmod(a.x, PRIME))
+
+function Base.:(*)(a::FPNum, v::SparseVector{FPNum, Int})
+    res = similar(v)
+    for i in findnz(v)[1]
+        res[i] = a * v[i]
+    end
+    return res
+end
+
+const INV = Union{AbstractFloat, Rational, FPNum}
+
+struct DualNumber{T}
+    r::T
+    eps::T
+end
+
+function Base.show(io::IO, a::DualNumber{<:Real})
     print(io, "$(round(a.r, digits = 2)) + ε ⋅ $(round(a.eps, digits = 2))")
 end
 
@@ -73,12 +101,12 @@ function Base.iszero(a::DualNumber)
 end
 
 function Base.zero(::Type{DualNumber{T}}) where T
-    return DualNumber{T}(0, 0)
+    return DualNumber{T}(zero(T), zero(T))
 end
 Base.zero(::DualNumber{T}) where T = zero(DualNumber{T})
 
 function Base.one(::Type{DualNumber{T}}) where T
-    return DualNumber{T}(1, 0)
+    return DualNumber{T}(one(T), zero(T))
 end
 Base.one(::DualNumber{T}) where T = one(DualNumber{T})
 
@@ -89,7 +117,6 @@ end
 function Base.:(-)(a::DualNumber, b::DualNumber)
     return DualNumber(a.r - b.r, a.eps - b.eps)
 end
-
 function Base.:(-)(a::DualNumber)
     return DualNumber(-a.r, -a.eps)
 end
@@ -97,28 +124,27 @@ end
 function Base.:(*)(a::DualNumber, b::DualNumber)
     return DualNumber(a.r*b.r, a.r*b.eps + a.eps*b.r)
 end
-
-function Base.:(*)(a::Integer, b::DualNumber)
+function Base.:(*)(a::Union{Real, FPNum}, b::DualNumber)
     return DualNumber(a*b.r, a*b.eps)
 end
 
-function Base.:(/)(a::DualNumber, b::Integer)
-    return DualNumber(a.r / b, a.eps / b)
-end
-
-isinvertible(a::DualNumber) = !iszero(a.r)
-
-function Base.inv(a::DualNumber)
+isinvertible(a::DualNumber{<:INV}) = !iszero(a.r)
+function Base.inv(a::DualNumber{<:INV})
     iszero(a.r) && error("not invertible")
-    return DualNumber(a.r^(-1), -(a.eps*a.r^(-2)))
+    arinv = Base.inv(a.r)
+    return DualNumber(arinv, -(a.eps*arinv*arinv))
+end
+function Base.:(/)(a::DualNumber{<:INV}, b::DualNumber{<:INV})
+    return a * Base.inv(b)
 end
 
 # needed to compute dot products of vectors
 LinearAlgebra.dot(a::DualNumber, b::DualNumber) = a * b
-LinearAlgebra.dot(a::Integer, b::DualNumber) = a * b
-LinearAlgebra.dot(a::DualNumber, b::Integer) = b * a
+LinearAlgebra.dot(a::Union{Real, FPNum}, b::DualNumber) = a * b
+LinearAlgebra.dot(a::DualNumber, b::Union{Real, FPNum}) = b * a
 
-function Base.isless(a::DualNumber, b::DualNumber)
+
+function Base.isless(a::DualNumber{<:Real}, b::DualNumber{<:Real})
 
     if a.r != b.r
         return a.r < b.r
@@ -129,8 +155,23 @@ function Base.isless(a::DualNumber, b::DualNumber)
     end
 end
 
-function eval_dual(a::DualNumber; einv = 10000)
-    return Float64(a.r) + 1/einv * Float64(a.eps)
+struct OrderDual
+    x::DualNumber{Float64}
+    xP::DualNumber{FPNum}
+end
+
+Base.zero(::Type{OrderDual}) = OrderDual(zero(DualNumber{Float64}), zero(DualNumber{FPNum}))
+Base.one(::Type{OrderDual}) = OrderDual(one(DualNumber{Float64}), one(DualNumber{FPNum}))
+
+function Base.isless(a::OrderDual, b::OrderDual)
+    a.xP == b.xP && return false
+    if a.xP.r != b.xP.r
+        return a.x.r < b.x.r
+    elseif a.xP.eps != b.xP.eps
+        return a.x.eps < b.x.eps
+    else
+        return false
+    end
 end
 
 # --- Lift --- #
@@ -145,38 +186,24 @@ end
 
 # --- Hyperplane --- #
 
-struct Hyperplane{S, T}
-    cfs::SparseVector{S, Int}
-    dot0::DualNumber{T}
-    dot1::DualNumber{T}
+struct Hyperplane
+    cfs::SparseVector{Float64, Int}
+    cfs_modP::SparseVector{FPNum, Int}
+    dot0::DualNumber{Float64}
+    dot1::DualNumber{Float64}
+    dot0_modP::DualNumber{FPNum}
+    dot1_modP::DualNumber{FPNum}
     act_index::Int
     sgn::Bool
     exchange_index::Int
-
-    # this may be needed if entries get too large
-    # function Hyperplane{T}(cfs::SparseVector{Int, Int},
-    #                        dot0::DualNumber{T}, dot1::DualNumber{T},
-    #                        act_index::Int, sgn::Bool, exchange_index::Int) where T
-        
-    #     g = gcd(cfs)
-    #     if g != 1
-    #         cfs .÷= g
-    #         dot0 /= g
-    #         dot1 /= g
-    #         sgn = g < 0 ? !sgn : sgn 
-    #     end
-    #     return new(cfs, dot0, dot1, act_index, sgn, exchange_index)
-    # end
 end
 
 function Base.:(==)(c1::Hyperplane, c2::Hyperplane)
-    c1.cfs == c2.cfs
+    c1.cfs_modP == c2.cfs_modP
 end
 
 is_exchange(c::Hyperplane) = !iszero(c.exchange_index)
 
-LinearAlgebra.dot(v::Vector, c::Hyperplane) = dot(v, c.cfs)
-LinearAlgebra.dot(c::Hyperplane, v::Vector) = dot(v, c.cfs)
 
 # --- MCI --- #
 
@@ -209,21 +236,21 @@ end
 
 # --- CellTable --- #
 
-struct CellTable{T}
+struct CellTable
     cell::MixedCell
-    walls::Vector{Hyperplane{T}}
+    walls::Vector{Hyperplane}
     i_min::Int
-    t_min::DualNumber{T}
+    t_min::OrderDual
 end
 
 function CellTable(m::MixedCell,
                    M::MCI,
-                   p0::DualVector{T},
-                   p1::DualVector{T},
-                   t_curr::DualNumber=zero(DualNumber{T})) where T
+                   p0::DualVector{Int},
+                   p1::DualVector{Int},
+                   t_curr::OrderDual=zero(OrderDual))
 
     walls, i_min, t_min = compute_active_walls!(m, M, p0, p1, t_curr)
-    return CellTable{T}(m, walls, i_min, t_min)
+    return CellTable(m, walls, i_min, t_min)
 end
 
 Base.:(==)(a::CellTable, b::CellTable) = a.cell == b.cell
@@ -235,20 +262,20 @@ is_finished(mtbl::CellTable) = iszero(mtbl.i_min)
 
 # --- WalkData --- # 
 
-mutable struct WalkData{C, T}
+mutable struct WalkData{C}
     M::MCI{C}
-    cells::MinExtractor{CellTable{T}}
+    cells::MinExtractor{CellTable}
     finished_cells::Set{MixedCellInds}
-    p0::DualVector{T}
-    p1::DualVector{T}
+    p0::DualVector{Int}
+    p1::DualVector{Int}
 end
 
 function WalkData(M::MCI,
                   initial_mixed_cells::Vector{MixedCell},
-                  p0::DualVector{T},
-                  p1::DualVector{T}) where T
+                  p0::DualVector{Int},
+                  p1::DualVector{Int})
 
-    cells = MinExtractor{CellTable{T}}()
+    cells = MinExtractor{CellTable}()
     for m in initial_mixed_cells
         push!(cells, CellTable(m, M, p0, p1))
     end
