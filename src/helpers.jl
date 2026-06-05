@@ -159,7 +159,7 @@ function normal_space(A::Matrix{C}, m::MixedCellInds) where C
     end
 
     if C <: Float64
-        return nullspace(eqns)
+        return nullspace(permutedims(eqns))
     end
 
     F = if C <: Int

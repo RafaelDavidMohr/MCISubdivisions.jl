@@ -168,86 +168,41 @@ function make_smaller(v::Vector{Int})
     end
 end
 
-function elim_supp_func!(E::ElimDataDeform, covec::Vector{Int})
+function elim_supp_func!(E::ElimDataDeform, covec::Vector{Int}; need_deform = true)
     n = size(E.V, 1) - 1
     d = vec(transpose(covec) * E.A[n+1:end, :])
-    new_lift = DualVector(d)
-    new_ms = deform_subdivision(E.Ap_deform, E.Vp,
-                                E.current_ms, E.current_lift,
-                                new_lift)
+
+    if need_deform
+        new_lift = DualVector(d)
+        new_ms = deform_subdivision(E.Ap_deform, E.Vp,
+                                    E.current_ms, E.current_lift,
+                                    new_lift)
+        E.current_lift = new_lift
+        E.current_ms = new_ms
+    end
 
     res = 0
     Ap = E.A[1:n, :]
     Ap_lft = vcat(Ap, permutedims(d))
-    for m in new_ms
+    for m in E.current_ms
         w = primitive_normal_vector(Ap_lft, m)
-        println(w)
         _, vl = eval_supp_func(Ap_lft, E.V, w, n + 1)
         res += (lifted_volume(m, Ap, d)*vl)
     end
 
-    E.current_lift = new_lift
-    E.current_ms = new_ms
-
     return res
-end
-
-function build_projection(E::ElimDataDeform, m::MixedCellInds,
-                          covec::Vector{Int},
-                          w::Vector{Int})
-    n = size(E.V, 1) - 1
-    k = size(E.A, 1) - n
-    B = rand(-100:100, k, k)
-    λ = solve(matrix(QQ, B), QQ.(covec), side = :right)
-    Ap = E.A[1:n, :]
-    L = permutedims(B) * E.A[n+1:end, :]
-    normal_matrix = hcat([normal_space(vcat(Ap, permutedims(L[i, :])), m)[1:n, :]
-                          for i in 1:size(L, 1)]...)
-    display(normal_matrix)
-    μ = solve(matrix(QQ, normal_matrix), QQ.(w), side = :right)
-    normal_matrix = normal_matrix * Matrix(diagonal_matrix(μ .// λ))
-    return matrix(QQ, normal_matrix) * matrix(QQ, B)^(-1)
 end
 
 function elim_vertex!(E::ElimDataDeform, covec::Vector{Int})
+
     n = size(E.V, 1) - 1
-    d = vec(transpose(covec) * E.A[n+1:end, :])
-    new_lift = DualVector(d)
-    new_ms = deform_subdivision(E.Ap_deform, E.Vp,
-                                E.current_ms, E.current_lift,
-                                new_lift)
+    k = size(E.A, 1) - n
 
-    res = zeros(Int, size(E.A, 1) - n)
-    Ap = E.A[1:n, :]
-    Ap_lft = vcat(Ap, permutedims(d))
-    for m in new_ms
-        w = primitive_normal_vector(Ap_lft, m)
-        idx, _ = eval_supp_func(Ap_lft, E.V, w, n + 1)
-        res += (lifted_volume(m, Ap, d)*E.A[n+1:end, idx])
-    end
+    elim_supp_func!(E, covec)
 
-    E.current_lift = new_lift
-    E.current_ms = new_ms
+    mat = vcat([permutedims(1000 * covec) for _ in 1:7]...)
+    mat += rand(-10:10, k, k)
+    rhs = [elim_supp_func!(E, mat[i, :], need_deform=false) for i in 1:size(mat, 1)]
 
-    return res
-end
-
-function eval_elim_supp_func(A::Matrix{Int}, V::Matrix{C},
-                             covec::Vector{Int},
-                             deform::Matrix{Int}) where C
-
-    n = size(V, 1) - 1
-    Ap = A[1:n, :]
-    Vp = rand(-100:100, n, n + 1) * V
-    d = vec(transpose(vcat(zeros(Int, n), covec)) * A)
-    Ap_eps = 1000 * Ap + deform
-    _, ms = mixed_subdivision(Ap_eps, Vp, d)
-    res = 0
-    Ap_lft = vcat(Ap, permutedims(d))
-    for m in ms
-        w = primitive_normal_vector(Ap_lft, m)
-        _, vl = eval_supp_func(Ap_lft, V, w, n + 1)
-        res += (lifted_volume(m, Ap, d)*vl)
-    end
-    return res
+    return Int.(round.(mat \ rhs))
 end
