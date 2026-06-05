@@ -51,9 +51,20 @@ function vol(m::MixedCell, A::Matrix{Int})
 end
 
 function vol(m::MixedCellInds, A::Matrix{Int})
-    mat = hcat([linear_span(A, S) for S in m]...)
+    mat = linear_span(m, A)
     lu = LinearAlgebra.lu(mat)
     return round(Int, abs(LinearAlgebra.det(lu)))
+end
+
+function lifted_volume(m::MixedCellInds, A::Matrix{Int}, d::Vector{Int})
+    A_lft = vcat(A, transpose(d))
+    mat = linear_span(m, A_lft)
+    h = hermite_form(matrix(ZZ, mat), trim = true)
+    return abs(Int(det(h)))
+end
+
+function linear_span(m::MixedCellInds, A::Matrix{Int})
+    return hcat([linear_span(A, S) for S in m]...)
 end
 
 # naive computation using msolve
@@ -165,7 +176,7 @@ function select_max_weight_columns(A::Matrix, w::Vector)
         col_key = Tuple(A[:, i])
         
         if haskey(column_dict, col_key)
-            best_idx, best_weight = column_dict[col_key]
+            _, best_weight = column_dict[col_key]
             if w[i] > best_weight
                 column_dict[col_key] = (i, w[i])
             end

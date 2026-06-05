@@ -41,7 +41,7 @@ function mixed_volume(A::Matrix{Int}, V::Matrix{C}) where C
 end
 
 function mixed_subdivision(A::Matrix{Int}, V::Matrix{C},
-                           d::Vector{Int}) where C
+                           d::Vector{Int} = rand(-LSIZE:LSIZE, size(A, 2))) where C
     
     @assert C <: Int || C <: FqFieldElem "Only integer of finite field coefficients supported"
 
