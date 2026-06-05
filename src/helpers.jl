@@ -125,6 +125,8 @@ function reduce_mod_rand_prime(V::Matrix{Int})
     return [F(x) for x in V]
 end
 
+reduce_mod_rand_prime(V::Matrix{FqFieldElem}) = V
+
 function linear_span(A::Matrix{C}, inds::Vector{Int}) where C
     a0 = A[:, first(inds)]
     L = Matrix{C}(undef, size(A, 1), length(inds) - 1)
@@ -225,16 +227,21 @@ end
 
 # --- other helpers --- #
 
-function eval_supp_func(A::Matrix{Int}, V::Matrix{C}, w::Vector{Int},
-                        k::Int) where C
-
+function cancellation(A::Matrix{Int}, V::Matrix{C}, w::Vector{Int}) where C
     F = C <: Integer ? QQ : parent(first(V))
     dotps = vec(transpose(w) * A)
     sp = sortperm(dotps, rev = true)
     V_osc = matrix(F, V[:, sp])
     R = echelon_form(V_osc)
+    return dotps, sp, Matrix(R)
+end
+
+function eval_supp_func(A::Matrix{Int}, V::Matrix{C}, w::Vector{Int},
+                        k::Int) where C
+
+    dotps, sp, R = cancellation(A, V, w)
     l = findfirst(!iszero, R[k, :])
-    return dotps[sp[l]]
+    return sp[l], dotps[sp[l]]
 end
 
 function forgetful_lift(A_size::Int, forget_inds::Vector{Int},

@@ -29,7 +29,7 @@ function mixed_subdivision(F::Vector{<:MPolyRingElem})
     @assert ngens(R) == length(F) "Input system not square"
     A, V = get_eci_data(F)
     d = rand(-LSIZE:LSIZE, size(A, 2))
-    Vp = typeof(first(F)) <: FqMPolyRingElem ? V : reduce_mod_rand_prime(V)
+    Vp = reduce_mod_rand_prime(V)
     return A, mixed_subdivision(A, Vp, d)[2]
 end
 
@@ -60,7 +60,7 @@ end
 
 function get_eliminant_polytope(F::Vector{<:MPolyRingElem})
     A, V = get_eci_data(F)
-    Vp = eltype(V) <: FqFieldElem ? V : reduce_mod_rand_prime(V)
+    Vp = reduce_mod_rand_prime(V)
     @info "setting up initial data"
     E = ElimData(A, Vp)
     @info "done"

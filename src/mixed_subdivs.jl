@@ -3,8 +3,12 @@
 function walk_homotopy!(w::WalkData)
 
     p0, p1 = w.p0, w.p1
-    if p0 == p1
+    if [poi.r for poi in p0] == [p1i.r for p1i in p1] # TEMPORARY
         @info "no deformation, nothing to do"
+        while !isempty(w.cells)
+            mtbl = extract_min!(w.cells)
+            push!(w.finished_cells, mtbl.cell.inds)
+        end
         return
     end
 
