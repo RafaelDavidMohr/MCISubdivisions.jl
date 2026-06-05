@@ -168,3 +168,21 @@ function make_smaller(v::Vector{Int})
     end
 end
 
+function eval_elim_supp_func(A::Matrix{Int}, V::Matrix{C},
+                             covec::Vector{Int},
+                             deform::Matrix{Int}) where C
+
+    n = size(V, 1) - 1
+    Ap = A[1:n, :]
+    Vp = rand(-100:100, n, n + 1) * V
+    d = vec(transpose(vcat(zeros(Int, n), covec)) * A)
+    Ap_eps = 1000 * Ap + deform
+    _, ms = mixed_subdivision(Ap_eps, Vp, d)
+    res = 0
+    Ap_lft = vcat(Ap, permutedims(d))
+    for m in ms
+        w = primitive_normal_vector(Ap_lft, m)
+        res += (lifted_volume(m, Ap, d)*eval_supp_func(Ap_lft, V, w, n + 1))
+    end
+    return res
+end

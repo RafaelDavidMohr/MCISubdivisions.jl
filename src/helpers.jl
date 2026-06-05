@@ -225,6 +225,18 @@ end
 
 # --- other helpers --- #
 
+function eval_supp_func(A::Matrix{Int}, V::Matrix{C}, w::Vector{Int},
+                        k::Int) where C
+
+    F = C <: Integer ? QQ : parent(first(V))
+    dotps = vec(transpose(w) * A)
+    sp = sortperm(dotps, rev = true)
+    V_osc = matrix(F, V[:, sp])
+    R = echelon_form(V_osc)
+    l = findfirst(!iszero, R[k, :])
+    return dotps[sp[l]]
+end
+
 function forgetful_lift(A_size::Int, forget_inds::Vector{Int},
                         d_eps::Vector{Int})
 
@@ -331,6 +343,7 @@ function eci_from_odebase(ode_filename, constr_filename)
 end
 
 # Functions to parse sage files from odebase.org
+# written by AI
 function parse_ode_system_manual(ode_filename, constr_filename)
     ode_content = read(ode_filename, String)
     

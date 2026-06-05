@@ -302,6 +302,23 @@ end
 
 # --- Mixed cell data --- #
 
+function primitive_normal_vector(A::Matrix{Int}, m::MixedCellInds)
+
+    K = normal_space(A, m)
+    @assert isone(size(K, 2)) "mixed cell does not lift to a hyperplane"
+    v = K[:, 1]
+    l = lcm(denominator.(v))
+    res = Int.(l * v)
+    g = gcd(res)
+    res = res .÷ g
+    test_ind = findfirst(idx -> all(mi -> idx ∉ mi, m), 1:size(A, 2))
+    if dot(res, A[:, test_ind]) > dot(res, A[:, first(first(m))])
+        return -res
+    else
+        return res
+    end
+end
+
 function outer_normal_vector(A::Matrix{Int}, m::MixedCellInds,
                              d::Vector{C}) where C
 
