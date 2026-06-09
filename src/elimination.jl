@@ -15,7 +15,7 @@ function construct_polytope!(E::ElimData)
         @info "dimension $(nverts - 1)"
         af = integer_affine_span(P)
         cfs = rand(-10:10, length(af))
-        w = make_smaller(sum(cfs .* af))
+        w = sum(cfs .* af)
         vert = elim_vertex!(E, w)
         fv = first(vertices(P))
         if all(h -> iszero(dot(h, vert - (Int).(fv))), af)
@@ -40,8 +40,7 @@ function construct_polytope!(E::ElimData)
 
             nv = (Int).(fc.a[1,:])
             val = fc.b
-            # w = make_smaller(10000 * nv + rand(-10:10, length(nv)))
-            w = 100 * nv + rand(-3:3, length(nv))
+            w = 1000 * nv + rand(-10:10, length(nv))
             new_vert = elim_vertex!(E, w)
             if dot(nv, new_vert) == val
                 @info "facet confirmed"

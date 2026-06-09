@@ -150,7 +150,7 @@ function mixed_cell_flip!(mtbl::CellTable,
             walls, i_min, t_min = new_cell_simple_exchange(mtbl, k, new_m)
             CellTable(new_m, walls, i_min, t_min)
         else
-            t_last = cross_val(c)
+            t_last = mtbl.t_min
             walls, i_min, t_min = compute_active_walls!(new_m, M, wd.p0, wd.p1,
                                                         t_last)
             CellTable(new_m, walls, i_min, t_min)

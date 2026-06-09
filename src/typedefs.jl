@@ -124,9 +124,8 @@ end
 function Base.:(*)(a::DualNumber, b::DualNumber)
     return DualNumber(a.r*b.r, a.r*b.eps + a.eps*b.r)
 end
-function Base.:(*)(a::Union{Real, FPNum}, b::DualNumber)
-    return DualNumber(a*b.r, a*b.eps)
-end
+Base.:(*)(a::Union{Real, FPNum}, b::DualNumber) = DualNumber(a*b.r, a*b.eps)
+Base.:(*)(b::DualNumber, a::Union{Real, FPNum}) = a * b
 
 isinvertible(a::DualNumber{<:INV}) = !iszero(a.r)
 function Base.inv(a::DualNumber{<:INV})
@@ -137,6 +136,9 @@ end
 function Base.:(/)(a::DualNumber{<:INV}, b::DualNumber{<:INV})
     return a * Base.inv(b)
 end
+
+# needed for other linear algebra operations
+Base.transpose(a::DualNumber) = a
 
 # needed to compute dot products of vectors
 LinearAlgebra.dot(a::DualNumber, b::DualNumber) = a * b
@@ -159,6 +161,8 @@ struct OrderDual
     x::DualNumber{Float64}
     xP::DualNumber{FPNum}
 end
+
+Base.:(==)(a::OrderDual, b::OrderDual) = a.xP == b.xP
 
 Base.zero(::Type{OrderDual}) = OrderDual(zero(DualNumber{Float64}), zero(DualNumber{FPNum}))
 Base.one(::Type{OrderDual}) = OrderDual(one(DualNumber{Float64}), one(DualNumber{FPNum}))
@@ -302,7 +306,7 @@ mutable struct ElimData
         A_shift[end, :] = repeat([shft], 1, size(Aw, 2))
         p, ms = with_logger(NullLogger()) do
             mixed_subdivision(hcat(Aw, A_shift), hcat(V, V),
-                              Int128.(rand(-LSIZE:LSIZE, 2*size(A, 2))))
+                              rand(-LSIZE:LSIZE, 2*size(A, 2)))
         end
         return new(A, V, shft, w, p.eps, ms)
     end

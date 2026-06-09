@@ -227,17 +227,17 @@ end
 
 # --- other helpers --- #
 
-function cancellation(A::Matrix{Int}, V::Matrix{C}, w::Vector{Int}) where C
+function cancellation(A::Matrix{Int}, V::Matrix{C}, w::Vector{T}) where {C, T <: Union{Real, DualNumber}}
     F = C <: Integer ? QQ : parent(first(V))
-    dotps = vec(transpose(w) * A)
+    dotps = Vector(vec(transpose(w) * A))
     sp = sortperm(dotps, rev = true)
     V_osc = matrix(F, V[:, sp])
     R = echelon_form(V_osc)
     return dotps, sp, Matrix(R)
 end
 
-function eval_supp_func(A::Matrix{Int}, V::Matrix{C}, w::Vector{Int},
-                        k::Int) where C
+function eval_supp_func(A::Matrix{Int}, V::Matrix{C}, w::Vector{T},
+                        k::Int) where {C, T <: Union{Real, DualNumber}}
 
     dotps, sp, R = cancellation(A, V, w)
     l = findfirst(!iszero, R[k, :])
