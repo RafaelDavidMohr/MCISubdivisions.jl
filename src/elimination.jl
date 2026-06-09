@@ -93,17 +93,17 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
     V_ext = hcat(E.V, E.V)
     wd = homotopy(A_target, V_ext, A_start, V_ext,
                   E.current_ms, E.current_lift,
-                  Int128.(rand(-LSIZE:LSIZE, size(A_target, 2))))
+                  rand(-LSIZE:LSIZE, size(A_target, 2)))
     
     sz = size(A_target, 2)
     p, ms = try 
         walk_homotopy!(wd)
-        wd.p1.eps[1:sz], gather_mixed_cells(wd, sz)
+        [pi.eps for pi in wd.p1[1:sz]], gather_mixed_cells(wd, sz)
     catch OverflowError
         @info "Overflow, recomputing without deformation"
         pp, mss = mixed_subdivision(A_target, V_ext,
-                                    Int128.(rand(-LSIZE:LSIZE, size(A_target, 2))))
-        pp.eps, mss
+                                    rand(-LSIZE:LSIZE, size(A_target, 2)))
+        [pi.eps for pi in pp], mss
     end
 
     E.current_ms = ms

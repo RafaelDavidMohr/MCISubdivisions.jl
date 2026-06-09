@@ -293,7 +293,7 @@ mutable struct ElimData
     V::Matrix{FqFieldElem}
     shift::Int
     current_covec::Vector{Int}
-    current_lift::Vector{Int128}
+    current_lift::Vector{Int}
     current_ms::Vector{MixedCellInds}
 
     function ElimData(A::Matrix{Int}, V::Matrix{FqFieldElem})
@@ -308,7 +308,7 @@ mutable struct ElimData
             mixed_subdivision(hcat(Aw, A_shift), hcat(V, V),
                               rand(-LSIZE:LSIZE, 2*size(A, 2)))
         end
-        return new(A, V, shft, w, p.eps, ms)
+        return new(A, V, shft, w, [pi.eps for pi in p], ms)
     end
 end
 
