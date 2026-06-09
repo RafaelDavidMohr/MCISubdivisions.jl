@@ -56,10 +56,17 @@ function vol(m::MixedCellInds, A::Matrix{Int})
     return round(Int, abs(LinearAlgebra.det(lu)))
 end
 
+function volume_in_affine_span(m::MixedCellInds, A::Matrix{Int})
+    mat = linear_span(m, A)
+    h = hermite_form(matrix(ZZ, mat), trim = true)
+    size(h, 1) != size(h, 2) && return 0
+    return abs(Int(det(h)))
+end
+
 function lifted_volume(m::MixedCellInds, A::Matrix{Int}, d::Vector{Int})
     A_lft = vcat(A, transpose(d))
     mat = linear_span(m, A_lft)
-    h = hermite_form(matrix(ZZ, mat), trim = true)
+    h = hermite_form(matrix(ZZ, mat))[1:size(mat, 2), 1:size(mat, 2)]
     return abs(Int(det(h)))
 end
 
@@ -216,7 +223,7 @@ function cross_val(c::Hyperplane)
 
     a, b = if iszero(l0dP.r) && iszero(l1dP.r)
         DualNumber(l0d.eps * Base.inv(denom.eps), 0.0), DualNumber(l0dP.eps * Base.inv(denomP.eps), zero(FPNum))
-    elseif iszero(denom.r)
+    elseif iszero(denomP.r)
         DualNumber(2.0, 0.0), DualNumber(FPNum(2), zero(FPNum))
     else
         l0d * inv(denom), l0dP * inv(denomP)

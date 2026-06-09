@@ -1,6 +1,6 @@
 # --- Functions for tropical elimination --- #
 
-function construct_polytope!(E::ElimData)
+function construct_polytope!(E::Union{ElimData, ElimDataDeform}, comp_func)
 
     n = size(E.V, 1) - 1 # n + 1 input equations
     k = size(E.A, 1) - n - 1
@@ -13,14 +13,12 @@ function construct_polytope!(E::ElimData)
     nverts = 1
     while nverts < amb_dim + 1
         @info "dimension $(nverts - 1)"
-        af = integer_affine_span(P)
-        cfs = rand(-10:10, length(af))
-        w = sum(cfs .* af)
+        ns = normal_space(P)
+        w = Int.(round.(ns * rand(-1000:1000, size(ns, 2)))) + rand(-100:100, size(ns, 1))
         vert = elim_vertex!(E, w)
-        fv = first(vertices(P))
-        if all(h -> iszero(dot(h, vert - (Int).(fv))), af)
+        if vert in P
             vert = elim_vertex!(E, -w)
-            all(h -> iszero(dot(h, vert - (Int).(fv))), af) && break
+            vert in P && break
         end
         @info "new vertex $(vert)"
         P = convex_hull(P, convex_hull([vert]))
@@ -40,7 +38,7 @@ function construct_polytope!(E::ElimData)
 
             nv = (Int).(fc.a[1,:])
             val = fc.b
-            w = 1000 * nv + rand(-10:10, length(nv))
+            w = 1000 * nv + rand(-50:50, length(nv))
             new_vert = elim_vertex!(E, w)
             if dot(nv, new_vert) == val
                 @info "facet confirmed"
@@ -49,7 +47,7 @@ function construct_polytope!(E::ElimData)
             end
 
             if !(new_vert in P) # check if new vertex was actually obtained
-                @info "new vertex $(new_vert)"
+                @info "new vertex $(new_vert - comp_func(w))"
                 P = convex_hull(P, convex_hull([new_vert]))
                 all_confirmed = false
                 break
@@ -156,15 +154,19 @@ function integer_affine_span(P::Polyhedron{QQFieldElem})
     return filter(!isempty, [(Int).(k[:, i]) for i in 1:size(k, 2)])
 end
 
-function make_smaller(v::Vector{Int})
-    mx = maximum((abs).(v))
-    if mx > 1000
-        nd = ndigits(mx)
-        div = 10^(nd - 3)
-        return (Int).((round).(v ./ div))
-    else
-        return v
+function normal_space(P::Polyhedron{QQFieldElem})
+    vs = vertices(P)
+    if isone(length(vs))
+        n = Oscar.ambient_dim(P)
+        return Float64.(id_matrix(n))
     end
+    mat = (Int).(vcat([transpose(vs[1] - v) for v in vs[2:end]]...))
+    return nullspace(mat)
+end
+
+function compute_roughly_orthogonal_vector(P::Polyhedron{QQFieldElem})
+    ns = normal_space(P)
+    return Int.(round.(ns * rand(-1000:1000, size(ns, 2))))
 end
 
 function elim_supp_func!(E::ElimDataDeform, covec::Vector{Int}; need_deform = true)
@@ -184,9 +186,15 @@ function elim_supp_func!(E::ElimDataDeform, covec::Vector{Int}; need_deform = tr
     Ap = E.A[1:n, :]
     Ap_lft = vcat(Ap, permutedims(d))
     for m in E.current_ms
+        # vl = volume_in_affine_span(m, E.A)
+        vl = lifted_volume(m, Ap, d)
+        if iszero(vl)
+            @warn "warning: zero volume for covec $(covec)"
+            continue
+        end
         w = primitive_normal_vector(Ap_lft, m)
-        _, vl = eval_supp_func(Ap_lft, E.V, w, n + 1)
-        res += (lifted_volume(m, Ap, d)*vl)
+        _, evl = eval_supp_func(Ap_lft, E.V, w, n + 1)
+        res += (vl*evl)
     end
 
     return res
@@ -205,3 +213,22 @@ function elim_vertex!(E::ElimDataDeform, covec::Vector{Int})
 
     return Int.(round.(mat \ rhs))
 end
+
+function elim_vertex(E::ElimDataDeform)
+    n = size(E.V, 1) - 1
+    k = size(E.A, 1) - n
+    w = rand(-10:10, k)
+    return elim_vertex!(E, w)
+end
+
+function make_smaller(v::Vector{Int})
+    mx = maximum((abs).(v))
+    if mx > 1000
+        nd = ndigits(mx)
+        div = 10^(nd - 3)
+        return (Int).((round).(v ./ div))
+    else
+        return v
+    end
+end
+

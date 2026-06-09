@@ -260,10 +260,21 @@ function compute_active_walls!(m::MixedCell,
                     c_cfs_modP[ind] = FPNum(mod(Int(round(d * sol[l])), PRIME))
                 end
                 c_cfs[j] -= 1
-                c_cfs_modP[j] -= FPNum(d % PRIME)
+                c_cfs_modP[j] -= FPNum(mod(d, PRIME))
             end
             c_cfs_s = sparse(c_cfs)
             c_cfs_modP_s = sparse(c_cfs_modP)
+            if !all(iszero, M.A * c_cfs_modP_s) # fallback
+                FF = GF(PRIME)
+                cayley_config_mP = matrix(FF, Int.(cayley_config))
+                new_cfs_modP = solve(cayley_config_mP, FF.(Int.(rs)), side = :right)
+                c_cfs_modP = zeros(FPNum, size(M.A, 2))
+                for (l, ind) in enumerate(all_m_inds)
+                    c_cfs_modP[ind] = FPNum(Int(lift(ZZ, new_cfs_modP[l])))
+                end
+                c_cfs_modP[j] -= one(FPNum)
+                c_cfs_modP_s = sparse(c_cfs_modP)
+            end
             d0c, d1c = dot(p0, c_cfs_s), dot(p1, c_cfs_s)
             d0c_modP, d1c_modP = dot(p0, c_cfs_modP_s), dot(p1, c_cfs_modP_s)
             t_min, i_min = add_hyperplane!(walls, m.inds, ei, i,
@@ -327,12 +338,7 @@ function outer_normal_vector(A::Matrix{Int}, m::MixedCellInds,
                              d::Vector{C}) where C
 
     A_lifted = vcat(A, transpose(d))
-    K = normal_space(A_lifted, m)
-    @assert isone(size(K, 2)) "mixed cell does not lift to a hyperplane"
-    v = K[:, 1]
-    v *= v[end]^(-1)
-    n = length(v)
-    return v[1:n-1]
+    return primitive_normal_vector(A_lifted, m)
 end
 
 function outer_normal_vector(M::MCI, m::MixedCell,

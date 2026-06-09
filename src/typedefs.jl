@@ -296,7 +296,7 @@ mutable struct ElimData
     current_lift::Vector{Int}
     current_ms::Vector{MixedCellInds}
 
-    function ElimData(A::Matrix{Int}, V::Matrix{FqFieldElem})
+    function ElimData(A::Matrix{Int}, V::Matrix{C}) where C
         n = size(V, 1) - 1
         k = size(A, 1) - n - 1
         w = rand(-10:10, k + 1)
@@ -304,11 +304,12 @@ mutable struct ElimData
         shft = min(minimum(i -> Aw[end, i], 1:size(Aw, 2)) - 1, 0) 
         A_shift = copy(Aw)
         A_shift[end, :] = repeat([shft], 1, size(Aw, 2))
+        Vp = reduce_mod_rand_prime(V)
         p, ms = with_logger(NullLogger()) do
-            mixed_subdivision(hcat(Aw, A_shift), hcat(V, V),
+            mixed_subdivision(hcat(Aw, A_shift), hcat(Vp, Vp),
                               rand(-LSIZE:LSIZE, 2*size(A, 2)))
         end
-        return new(A, V, shft, w, [pi.eps for pi in p], ms)
+        return new(A, Vp, shft, w, [pi.eps for pi in p], ms)
     end
 end
 
@@ -325,7 +326,7 @@ mutable struct ElimDataDeform
         VP = reduce_mod_rand_prime(V)
         FF = parent(first(VP))
         Vp = FF.(rand(-1000:1000, n, n + 1)) * VP
-        Ap_deform = 1000*A[1:n, :] + rand(-10:10, n, size(A, 2))
+        Ap_deform = 5000*A[1:n, :] + rand(-10:10, n, size(A, 2))
         d, ms = mixed_subdivision(Ap_deform, Vp)
         current_lift = [DualNumber(di.eps, 0) for di in d]
 

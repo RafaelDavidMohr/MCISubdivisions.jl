@@ -43,7 +43,7 @@ end
 function mixed_subdivision(A::Matrix{Int}, V::Matrix{C},
                            d::Vector{Int} = rand(-LSIZE:LSIZE, size(A, 2))) where C
     
-    @assert C <: Int || C <: FqFieldElem "Only integer of finite field coefficients supported"
+    @assert C <: Int || C <: FqFieldElem "Only integer or finite field coefficients supported"
 
     wd = starting_system(A, V, d)
 
@@ -60,9 +60,8 @@ end
 
 function get_eliminant_polytope(F::Vector{<:MPolyRingElem})
     A, V = get_eci_data(F)
-    Vp = reduce_mod_rand_prime(V)
     @info "setting up initial data"
-    E = ElimData(A, Vp)
+    E = ElimDataDeform(A, V)
     @info "done"
     return construct_polytope!(E)
 end
