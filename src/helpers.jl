@@ -221,6 +221,8 @@ function cross_val(c::Hyperplane)
     denom = l0d - l1d
     denomP = l0dP - l1dP
 
+    iszero(denom) && @assert iszero(denomP) "inconsistent dual number pair $(denom), $(denomP)"
+
     a, b = if iszero(l0dP.r) && iszero(l1dP.r)
         DualNumber(l0d.eps * Base.inv(denom.eps), 0.0), DualNumber(l0dP.eps * Base.inv(denomP.eps), zero(FPNum))
     elseif iszero(denomP.r)

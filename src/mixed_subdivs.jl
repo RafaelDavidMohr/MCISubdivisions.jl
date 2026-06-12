@@ -37,6 +37,7 @@ function deform_subdivision(A::Matrix{Int}, V::Matrix{C},
 end
 
 function starting_system(A::Matrix{Int}, V::Matrix{C}, d::Vector{Int}) where C
+    
     n = size(A, 1)
     A_size = size(A, 2)
 
@@ -196,7 +197,6 @@ function new_cell_simple_exchange(mtbl::CellTable,
             c.cfs[si]^(-1) * co.cfs[si], inv(c.cfs_modP[si]) * co.cfs_modP[si]
         end
         cfs_new = co.cfs - mult*c.cfs
-        cfs_new[si] = 0.0
         cfs_newP = co.cfs_modP - multP*c.cfs_modP
         dco0, dco1 = co.dot0, co.dot1
         d0_new = dco0 - mult*dc0

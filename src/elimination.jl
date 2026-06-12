@@ -1,6 +1,6 @@
 # --- Functions for tropical elimination --- #
 
-function construct_polytope!(E::Union{ElimData, ElimDataDeform}, comp_func)
+function construct_polytope!(E::Union{ElimData, ElimDataDeform})
 
     n = size(E.V, 1) - 1 # n + 1 input equations
     k = size(E.A, 1) - n - 1
@@ -12,9 +12,9 @@ function construct_polytope!(E::Union{ElimData, ElimDataDeform}, comp_func)
     P = convex_hull([vrt])
     nverts = 1
     while nverts < amb_dim + 1
-        @info "dimension $(nverts - 1)"
+        @info "$(nverts) vertices computed"
         ns = normal_space(P)
-        w = Int.(round.(ns * rand(-1000:1000, size(ns, 2)))) + rand(-100:100, size(ns, 1))
+        w = int_approximate(ns * rand(-10:10, size(ns, 2))) + rand(-10:10, size(ns, 1))
         vert = elim_vertex!(E, w)
         if vert in P
             vert = elim_vertex!(E, -w)
@@ -47,7 +47,7 @@ function construct_polytope!(E::Union{ElimData, ElimDataDeform}, comp_func)
             end
 
             if !(new_vert in P) # check if new vertex was actually obtained
-                @info "new vertex $(new_vert - comp_func(w))"
+                @info "new vertex $(new_vert)"
                 P = convex_hull(P, convex_hull([new_vert]))
                 all_confirmed = false
                 break
@@ -60,18 +60,40 @@ end
 
 function elim_vertex!(E::ElimData, covec::Vector{Int})
     if E.current_covec != covec
-        deform_new_covector!(E, covec)
+        new_covector!(E, covec)
     end
     return elim_vertex(E)
 end
 
 function elim_supp_func!(E::ElimData, covec::Vector{Int})
     if E.current_covec != covec
-        deform_new_covector!(E, covec)
+        new_covector!(E, covec)
     end
     return elim_supp_func(E)
 end
 
+function new_covector!(E::ElimData, new_covec::Vector{Int})
+    n = size(E.V, 1) - 1
+    w_dot_new = (permutedims(vcat(zeros(Int, n), new_covec)) * E.A)
+    new_shift = min(minimum(w_dot_new) - 1, 0) 
+    w_dot_new = w_dot_new .- new_shift
+    
+    A_target = hcat(vcat(E.A[1:n, :], w_dot_new),
+                    vcat(E.A[1:n, :], zeros(Int, 1, size(E.A, 2))))
+
+    V_ext = hcat(E.V, E.V)
+    
+    pp, ms = mixed_subdivision(A_target, V_ext,
+                              rand(-LSIZE:LSIZE, size(A_target, 2)))
+    p = [pi.eps for pi in pp]
+
+    E.current_ms = ms
+    E.current_lift = p
+    E.current_covec = new_covec
+    E.shift = new_shift
+end
+
+# this currently does not work sometimes
 function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
 
     n = size(E.V, 1) - 1
@@ -221,14 +243,6 @@ function elim_vertex(E::ElimDataDeform)
     return elim_vertex!(E, w)
 end
 
-function make_smaller(v::Vector{Int})
-    mx = maximum((abs).(v))
-    if mx > 1000
-        nd = ndigits(mx)
-        div = 10^(nd - 3)
-        return (Int).((round).(v ./ div))
-    else
-        return v
-    end
+function int_approximate(v::Vector{Float64}, precision = 2)
+    return Int.(round.(10^precision * v))
 end
-

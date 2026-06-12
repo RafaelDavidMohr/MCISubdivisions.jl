@@ -79,7 +79,7 @@ Base.inv(a::FPNum) = FPNum(invmod(a.x, PRIME))
 
 function Base.:(*)(a::FPNum, v::SparseVector{FPNum, Int})
     res = similar(v)
-    for i in findnz(v)[1]
+    for i in findall(!iszero, v)
         res[i] = a * v[i]
     end
     return res
@@ -129,7 +129,7 @@ Base.:(*)(b::DualNumber, a::Union{Real, FPNum}) = a * b
 
 isinvertible(a::DualNumber{<:INV}) = !iszero(a.r)
 function Base.inv(a::DualNumber{<:INV})
-    iszero(a.r) && error("not invertible")
+    iszero(a.r) && error("$(a.r), $(a.eps) not invertible")
     arinv = Base.inv(a.r)
     return DualNumber(arinv, -(a.eps*arinv*arinv))
 end
