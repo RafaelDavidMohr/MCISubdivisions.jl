@@ -328,14 +328,13 @@ function id_matrix(n)
     return [i == j ? 1 : 0 for i in 1:n, j in 1:n]
 end
 
-function get_A_disc_equations(A::Matrix{Int}, dehom=1)
+function get_A_disc_equations(A::Matrix{Int}, dehom = 1)
 
     d, n = size(A)
     A_lift = vcat(A, id_matrix(n))
     A_lift = A_lift[1:size(A_lift, 1) .!= (dehom + d), :]
-    R, vars = polynomial_ring(QQ, vcat(["x$i" for i in 1:d], ["z$i" for i in 1:(n-1)]))
+    _, vars = polynomial_ring(QQ, vcat(["x$i" for i in 1:d], ["z$i" for i in 1:(n-1)]))
     x = vars[1:d]
-    z = vars[d+1:end]
     s = sum(prod(map((i,j) -> i^j, vars, A_lift[:,k])) for k in 1:n)
     fs = [s; [v*derivative(s, v) for v in x]]
     return fs

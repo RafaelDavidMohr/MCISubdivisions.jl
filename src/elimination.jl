@@ -8,7 +8,7 @@ function construct_polytope!(E::Union{ElimData, ElimDataDeform})
     @info "computing initial vertices"
 
     vrt = elim_vertex(E)
-    @info "new vertex $(vrt)"
+    @info "new vertex $vrt"
     P = convex_hull([vrt])
     nverts = 1
     while nverts < amb_dim + 1
@@ -20,17 +20,20 @@ function construct_polytope!(E::Union{ElimData, ElimDataDeform})
             vert = elim_vertex!(E, -w)
             vert in P && break
         end
-        @info "new vertex $(vert)"
+        @info "new vertex $vert"
         P = convex_hull(P, convex_hull([vert]))
         nverts += 1
     end
     @info "done"
 
-    facts_confirmed = AffineHalfspace{QQFieldElem}[]
+    facts_confirmed = Set{AffineHalfspace{QQFieldElem}}()
+    vs = Set([Int.(v) for v in vertices(P)])
 
     all_confirmed = false
     while !all_confirmed
+        @info "recomputing facets"
         facts = facets(P)
+        @info "done, $(length(facts)) facets to check"
         all_confirmed = true
 
         for fc in facts
@@ -39,20 +42,25 @@ function construct_polytope!(E::Union{ElimData, ElimDataDeform})
             nv = (Int).(fc.a[1,:])
             val = fc.b
             w = 100 * nv + rand(-10:10, length(nv))
+            @info "trying to compute new vertex"
             new_vert = elim_vertex!(E, w)
             if dot(nv, new_vert) == val
                 @info "facet confirmed"
                 push!(facts_confirmed, fc)
                 continue
+            else
+                all_confirmed = false
             end
 
-            if !(new_vert in P) # check if new vertex was actually obtained
+            if !(new_vert in vs) # check if new vertex was actually obtained
                 @info "new vertex $(new_vert)"
-                P = convex_hull(P, convex_hull([new_vert]))
-                all_confirmed = false
-                break
+                push!(vs, new_vert)
+                # P = convex_hull(P, convex_hull([new_vert]))
+                # break
             end
         end
+
+        P = convex_hull(collect(vs), non_redundant = true)
     end
 
     return P
@@ -125,6 +133,8 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
                                     rand(-LSIZE:LSIZE, size(A_target, 2)))
         [pi.eps for pi in pp], mss
     end
+
+    any(m -> !certify_mixed_cell(A_target, V_ext, m, p), ms) && error("error in mixed subdivision computation")
 
     E.current_ms = ms
     E.current_lift = p
