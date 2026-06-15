@@ -36,13 +36,14 @@ function deform_subdivision(A::Matrix{Int}, V::Matrix{C},
     return gather_mixed_cells(wd, excluded_inds)
 end
 
-function starting_system(A::Matrix{Int}, V::Matrix{C}, d::Vector{Int}) where C
+function starting_system(A::Matrix{Int}, V::Matrix{C}, d::Vector{Int},
+                         p_start::Vector{Int}) where C
     
     n = size(A, 1)
     A_size = size(A, 2)
 
     # extended MCI
-    p_start = rand(-LSIZE:LSIZE, A_size)
+    # p_start = rand(-LSIZE:LSIZE, A_size)
     col_inds = select_max_weight_columns(A, p_start)
     sd = @inbounds subdivision_of_points(transpose(A[:, col_inds]), -p_start[col_inds])
     A_start = copy(A)
@@ -264,16 +265,8 @@ function compute_active_walls!(m::MixedCell,
             end
             c_cfs_s = sparse(c_cfs)
             c_cfs_modP_s = sparse(c_cfs_modP)
-            if !all(iszero, M.A * c_cfs_modP_s) # fallback
-                FF = GF(PRIME)
-                cayley_config_mP = matrix(FF, Int.(cayley_config))
-                new_cfs_modP = solve(cayley_config_mP, FF.(Int.(rs)), side = :right)
-                c_cfs_modP = zeros(FPNum, size(M.A, 2))
-                for (l, ind) in enumerate(all_m_inds)
-                    c_cfs_modP[ind] = FPNum(Int(lift(ZZ, new_cfs_modP[l])))
-                end
-                c_cfs_modP[j] -= one(FPNum)
-                c_cfs_modP_s = sparse(c_cfs_modP)
+            if !all(iszero, M.A * c_cfs_modP_s)
+                throw(RoundingError("incorrectly rounded integer solution, determinant $d"))
             end
             d0c, d1c = dot(p0, c_cfs_s), dot(p1, c_cfs_s)
             d0c_modP, d1c_modP = dot(p0, c_cfs_modP_s), dot(p1, c_cfs_modP_s)
@@ -300,6 +293,12 @@ function add_hyperplane!(walls::Vector{Hyperplane},
                          dc1::DualNumber,
                          dc0_modP::DualNumber,
                          dc1_modP::DualNumber)
+
+    for (i, ci) in enumerate(cfs_modP)
+        if iszero(ci)
+            cfs[i] = 0.0
+        end
+    end
 
     @inbounds sgn = signbit(partial_sum(m[ai], cfs))
     c_new = Hyperplane(cfs, cfs_modP,
@@ -332,6 +331,30 @@ function primitive_normal_vector(A::Matrix{Int}, m::MixedCellInds)
     else
         return res
     end
+end
+
+function certify_mixed_cell(A::Matrix{Int}, V::Matrix{FqFieldElem},
+                            m::MixedCellInds, d::Vector{Int})
+
+    A_lifted = vcat(A, transpose(d))
+    w = primitive_normal_vector(A_lifted, m)
+    dotps = vec(permutedims(w) * A_lifted)
+
+    M = MCI(V, A)
+    mc = MixedCell(m, M)
+    last_dp = dotps[first(first(m))] + 1
+    for (mi, li) in zip(mc.inds, mc.loc_inds)
+        if dotps[first(mi)] >= last_dp
+            println("wrong order of components")
+            return false
+        end
+        last_dp = dotps[first(mi)]
+        if any(lij -> dotps[lij] >= last_dp, li)
+            println("wrong index in component")
+            return false
+        end
+    end
+    return true
 end
 
 function outer_normal_vector(A::Matrix{Int}, m::MixedCellInds,

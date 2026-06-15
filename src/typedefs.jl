@@ -208,7 +208,6 @@ end
 
 is_exchange(c::Hyperplane) = !iszero(c.exchange_index)
 
-
 # --- MCI --- #
 
 struct MCI{C}
@@ -332,4 +331,8 @@ mutable struct ElimDataDeform
 
         return new(A, Ap_deform, VP, Vp, current_lift, ms)
     end
+end
+
+struct RoundingError <: Exception
+    message::String
 end
