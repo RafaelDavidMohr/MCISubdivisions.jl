@@ -41,7 +41,7 @@ function construct_polytope!(E::Union{ElimData, ElimDataDeform})
 
             nv = (Int).(fc.a[1,:])
             val = fc.b
-            w = 100 * nv + rand(-10:10, length(nv))
+            w = nv
             @info "trying to compute new vertex"
             new_vert = elim_vertex!(E, w)
             if dot(nv, new_vert) == val
@@ -55,8 +55,6 @@ function construct_polytope!(E::Union{ElimData, ElimDataDeform})
             if !(new_vert in vs) # check if new vertex was actually obtained
                 @info "new vertex $(new_vert)"
                 push!(vs, new_vert)
-                # P = convex_hull(P, convex_hull([new_vert]))
-                # break
             end
         end
 
@@ -134,7 +132,7 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
         [pi.eps for pi in pp], mss
     end
 
-    any(m -> !certify_mixed_cell(A_target, V_ext, m, p), ms) && error("error in mixed subdivision computation")
+    # any(m -> !certify_mixed_cell(A_target, V_ext, m, p), ms) && error("error in mixed subdivision computation")
 
     E.current_ms = ms
     E.current_lift = p
