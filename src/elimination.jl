@@ -39,9 +39,9 @@ function construct_polytope!(E::Union{ElimData, ElimDataDeform})
         for fc in facts
             fc in facts_confirmed && continue
 
-            nv = (Int).(fc.a[1,:])
+            nv = ZZ.(fc.a[1,:])
             val = fc.b
-            w = nv
+            w = shrink(nv)
             @info "trying to compute new vertex"
             new_vert = elim_vertex!(E, w)
             if dot(nv, new_vert) == val
@@ -132,7 +132,7 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
         [pi.eps for pi in pp], mss
     end
 
-    # any(m -> !certify_mixed_cell(A_target, V_ext, m, p), ms) && error("error in mixed subdivision computation")
+    any(m -> !certify_mixed_cell(A_target, V_ext, m, p), ms) && error("Error in mixed subdivision computation, possibly due to rounding. Try to relaunch the computation.")
 
     E.current_ms = ms
     E.current_lift = p
@@ -253,4 +253,15 @@ end
 
 function int_approximate(v::Vector{Float64}, precision = 2)
     return Int.(round.(10^precision * v))
+end
+
+function shrink(v::Vector{ZZRingElem})
+    vt = BigInt.(v)
+    nd = ndigits(maximum(abs.(vt)))
+    if nd > 4
+        vnew = vt ./ 10^(nd - 4)
+        return Int.(round.(vnew))
+    else
+        return Int.(vt)
+    end
 end
