@@ -17,10 +17,10 @@ F = get_A_disc_equations(A)
 
 # Δ_1 × Δ_1 × Δ_1
 vs = vertices(simplex(1) * simplex(1) * simplex(1))
-A = A = Int.(hcat(vs...))
+A = Int.(hcat(vs...))
 F = get_A_disc_equations(A)
 
 # Δ_1 × Δ_1 × Δ_2
 vs = vertices(simplex(1) * simplex(1) * simplex(2))
-A = A = Int.(hcat(vs...))
+A = Int.(hcat(vs...))
 F = get_A_disc_equations(A)
