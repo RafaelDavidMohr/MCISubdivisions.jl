@@ -18,7 +18,7 @@ function walk_homotopy!(w::WalkData)
             push!(w.finished_cells, mtbl.cell.inds)
             continue
         end
-        @info "flipping cell at t = $(mtbl.t_min)"
+        @info "flipping cell at t = $(mtbl.t_min.x)"
         new_cell_tables = mixed_cell_flip!(mtbl, w)
         for nc in new_cell_tables
             push!(w.cells, nc)
