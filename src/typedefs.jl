@@ -325,7 +325,7 @@ mutable struct ElimDataDeform
         VP = reduce_mod_rand_prime(V)
         FF = parent(first(VP))
         Vp = FF.(rand(-1000:1000, n, n + 1)) * VP
-        Ap_deform = 5000*A[1:n, :] + rand(-10:10, n, size(A, 2))
+        Ap_deform = 100*A[1:n, :] + rand(-5:5, n, size(A, 2))
         d, ms = mixed_subdivision(Ap_deform, Vp)
         current_lift = [DualNumber(di.eps, 0) for di in d]
 

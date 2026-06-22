@@ -218,10 +218,10 @@ function elim_supp_func!(E::ElimDataDeform, covec::Vector{Int}; need_deform = tr
     for m in E.current_ms
         # vl = volume_in_affine_span(m, E.A)
         vl = lifted_volume(m, Ap, d)
-        if iszero(vl)
-            @warn "warning: zero volume for covec $(covec)"
-            continue
-        end
+        # if iszero(vl)
+        #     @warn "warning: zero volume for covec $(covec)"
+        #     continue
+        # end
         w = primitive_normal_vector(Ap_lft, m)
         _, evl = eval_supp_func(Ap_lft, E.V, w, n + 1)
         res += (vl*evl)

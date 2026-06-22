@@ -18,6 +18,7 @@ function walk_homotopy!(w::WalkData)
             push!(w.finished_cells, mtbl.cell.inds)
             continue
         end
+        @info "flipping cell at t = $(mtbl.t_min)"
         new_cell_tables = mixed_cell_flip!(mtbl, w)
         for nc in new_cell_tables
             push!(w.cells, nc)
@@ -45,7 +46,9 @@ function starting_system(A::Matrix{Int}, V::Matrix{C}, d::Vector{Int},
     # extended MCI
     # p_start = rand(-LSIZE:LSIZE, A_size)
     col_inds = select_max_weight_columns(A, p_start)
+    @info "computing start system"
     sd = @inbounds subdivision_of_points(transpose(A[:, col_inds]), -p_start[col_inds])
+    @info "done"
     A_start = copy(A)
     V_start = if C <: FqFieldElem
         F = parent(first(V))
