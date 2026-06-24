@@ -123,12 +123,16 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
         wd = homotopy(A_target, V_ext, A_start, V_ext,
                       E.current_ms, E.current_lift,
                       rand(-LSIZE:LSIZE, size(A_target, 2)))
-        walk_homotopy!(wd)
+        with_logger(NullLogger()) do
+            walk_homotopy!(wd)
+        end
         [pi.eps for pi in wd.p1[1:sz]], gather_mixed_cells(wd, sz)
     catch RoundingError
         @info "Rounding error, recomputing without deformation"
-        pp, mss = mixed_subdivision(A_target, V_ext,
-                                    rand(-LSIZE:LSIZE, size(A_target, 2)))
+        pp, mss = with_logger(NullLogger()) do
+            mixed_subdivision(A_target, V_ext,
+                              rand(-LSIZE:LSIZE, size(A_target, 2)))
+        end
         [pi.eps for pi in pp], mss
     end
 
