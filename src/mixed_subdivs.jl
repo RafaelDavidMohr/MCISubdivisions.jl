@@ -269,7 +269,7 @@ function compute_active_walls!(m::MixedCell,
             c_cfs_s = sparse(c_cfs)
             c_cfs_modP_s = sparse(c_cfs_modP)
             if !all(iszero, M.A * c_cfs_modP_s)
-                throw(RoundingError("incorrectly rounded integer solution, determinant $d"))
+                throw(RoundingError("incorrectly rounded integer solution. Relaunching the computation with different height vectors may help."))
             end
             d0c, d1c = dot(p0, c_cfs_s), dot(p1, c_cfs_s)
             d0c_modP, d1c_modP = dot(p0, c_cfs_modP_s), dot(p1, c_cfs_modP_s)
