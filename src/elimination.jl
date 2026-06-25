@@ -1,6 +1,6 @@
 # --- Functions for tropical elimination --- #
 
-function construct_polytope!(E::Union{ElimData, ElimDataDeform})
+function construct_polytope!(E::ElimData)
 
     n = size(E.V, 1) - 1 # n + 1 input equations
     k = size(E.A, 1) - n - 1
@@ -201,58 +201,6 @@ end
 function compute_roughly_orthogonal_vector(P::Polyhedron{QQFieldElem})
     ns = normal_space(P)
     return Int.(round.(ns * rand(-1000:1000, size(ns, 2))))
-end
-
-function elim_supp_func!(E::ElimDataDeform, covec::Vector{Int}; need_deform = true)
-    n = size(E.V, 1) - 1
-    d = vec(transpose(covec) * E.A[n+1:end, :])
-
-    if need_deform
-        new_lift = DualVector(d)
-        new_ms = deform_subdivision(E.Ap_deform, E.Vp,
-                                    E.current_ms, E.current_lift,
-                                    new_lift)
-        E.current_lift = new_lift
-        E.current_ms = new_ms
-    end
-
-    res = 0
-    Ap = E.A[1:n, :]
-    Ap_lft = vcat(Ap, permutedims(d))
-    for m in E.current_ms
-        # vl = volume_in_affine_span(m, E.A)
-        vl = lifted_volume(m, Ap, d)
-        # if iszero(vl)
-        #     @warn "warning: zero volume for covec $(covec)"
-        #     continue
-        # end
-        w = primitive_normal_vector(Ap_lft, m)
-        _, evl = eval_supp_func(Ap_lft, E.V, w, n + 1)
-        res += (vl*evl)
-    end
-
-    return res
-end
-
-function elim_vertex!(E::ElimDataDeform, covec::Vector{Int})
-
-    n = size(E.V, 1) - 1
-    k = size(E.A, 1) - n
-
-    elim_supp_func!(E, covec)
-
-    mat = vcat([permutedims(1000 * covec) for _ in 1:7]...)
-    mat += rand(-10:10, k, k)
-    rhs = [elim_supp_func!(E, mat[i, :], need_deform=false) for i in 1:size(mat, 1)]
-
-    return Int.(round.(mat \ rhs))
-end
-
-function elim_vertex(E::ElimDataDeform)
-    n = size(E.V, 1) - 1
-    k = size(E.A, 1) - n
-    w = rand(-10:10, k)
-    return elim_vertex!(E, w)
 end
 
 function int_approximate(v::Vector{Float64}, precision = 2)

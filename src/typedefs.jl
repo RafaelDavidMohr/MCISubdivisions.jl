@@ -312,27 +312,6 @@ mutable struct ElimData
     end
 end
 
-mutable struct ElimDataDeform
-    A::Matrix{Int}
-    Ap_deform::Matrix{Int}
-    V::Matrix{FqFieldElem}
-    Vp::Matrix{FqFieldElem}
-    current_lift::DualVector{Int}
-    current_ms::Vector{MixedCellInds}
-
-    function ElimDataDeform(A::Matrix{Int}, V::Matrix{C}) where C
-        n = size(V, 1) - 1
-        VP = reduce_mod_rand_prime(V)
-        FF = parent(first(VP))
-        Vp = FF.(rand(-1000:1000, n, n + 1)) * VP
-        Ap_deform = 100*A[1:n, :] + rand(-5:5, n, size(A, 2))
-        d, ms = mixed_subdivision(Ap_deform, Vp)
-        current_lift = [DualNumber(di.eps, 0) for di in d]
-
-        return new(A, Ap_deform, VP, Vp, current_lift, ms)
-    end
-end
-
 struct RoundingError <: Exception
     message::String
 end
