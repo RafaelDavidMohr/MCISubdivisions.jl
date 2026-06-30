@@ -136,7 +136,15 @@ function deform_new_covector!(E::ElimData, new_covec::Vector{Int})
         [pi.eps for pi in pp], mss
     end
 
-    any(m -> !certify_mixed_cell(A_target, V_ext, m, p), ms) && error("Error in mixed subdivision computation, possibly due to rounding. Try to relaunch the computation.")
+    if any(m -> !certify_mixed_cell(A_target, V_ext, m, p), ms)
+        @info "Error in mixed subdivision computation, recomputing without deformation"
+        p, ms = with_logger(NullLogger()) do
+            pp, mss = mixed_subdivision(A_target, V_ext,
+                                        rand(-LSIZE:LSIZE, size(A_target, 2)))
+            [pi.eps for pi in pp], mss
+        end
+        @assert all(m -> certify_mixed_cell(A_target, V_ext, m, p), ms) "Cannot get correct subdivision."
+    end
 
     E.current_ms = ms
     E.current_lift = p

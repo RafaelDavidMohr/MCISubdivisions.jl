@@ -348,12 +348,10 @@ function certify_mixed_cell(A::Matrix{Int}, V::Matrix{FqFieldElem},
     last_dp = dotps[first(first(m))] + 1
     for (mi, li) in zip(mc.inds, mc.loc_inds)
         if dotps[first(mi)] >= last_dp
-            println("wrong order of components")
             return false
         end
         last_dp = dotps[first(mi)]
         if any(lij -> dotps[lij] >= last_dp, li)
-            println("wrong index in component")
             return false
         end
     end
