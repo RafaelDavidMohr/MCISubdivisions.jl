@@ -3,14 +3,6 @@ using Oscar
 
 # example from [Gro+16]
 
-function specialize(F::Vector{<:MPolyRingElem}, choice_of_parameters::Vector{<:Union{Int, RingElem}})
-    Kax = parent(first(F))
-    Ka = coefficient_ring(Kax)
-    K = base_ring(Ka)
-    Kx, x = polynomial_ring(K, symbols(Kax))
-    phi = hom(Kax, Kx, c -> evaluate(c, choice_of_parameters), x)
-    return phi.(F)
-end
 A, (k1, k2, k3, k4, k5, k6, k7, k8, k9, k10, k11, k12, k13, k14, k15, k16, k17, k18, k19, k20, k21, k22, k23, k24, k25, k26, k27, k28, k29, k30, k31, c1, c2, c3, c4, c5) =
     polynomial_ring(QQ, ["k1", "k2", "k3", "k4", "k5", "k6", "k7", "k8", "k9", "k10", "k11", "k12", "k13", "k14", "k15", "k16", "k17", "k18", "k19", "k20", "k21", "k22", "k23", "k24", "k25", "k26", "k27", "k28", "k29", "k30", "k31", "c1", "c2", "c3", "c4", "c5"]);
 
