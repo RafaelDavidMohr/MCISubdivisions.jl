@@ -20,22 +20,21 @@ function random_lift(l)
     return (numerator).(mult * b)
 end
 
-t_cross = MCIS.zero(MCIS.DualNumber)
 p_new = MCIS.DualVector(random_lift(size(A, 2)))
 i = 1
 max_rr = 0
 while true
-    println("sample $i")
-    reached, t_cross, ms = with_logger(NullLogger()) do
-        MCIS.deform_subdivision(A, V, ms, p, p_new, 24)
+    ms = with_logger(NullLogger()) do
+        MCIS.deform_subdivision(A, V, ms, p, p_new)
     end
-    rr = sum([MCIS.real_root_count(m, A, V) for m in ms])
+    rr = real_root_count(A, QQ.(V), ms)
+    println("sample $i, rr $rr")
     if rr > max_rr
         max_rr = rr
-        println("$(max_rr) real roots after deformation")
+        println("NEW MAXIMUM")
     end
-    if reached
-        println("24 real roots!")
+    if max_rr == 24
+        println("24 real roots reached!")
         break
     end
     p = p_new
