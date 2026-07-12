@@ -80,10 +80,14 @@ function real_root_count(m::MixedCellInds, A::Matrix{Int}, V::Matrix{QQFieldElem
     monA(i) = prod(x .^ A[:, i])
     mmat = Matrix(echelon_form(matrix(QQ, V)[:, vcat(m...)]))
     eqns = QQMPolyRingElem[]
+    shft = 0
+    row_shft = 0
     for inds in m
         for l in 1:length(inds)-1
-            push!(eqns, sum([mmat[l, i] * monA(j) for (i, j) in enumerate(inds)]))
+            push!(eqns, sum([mmat[l + row_shft, i + shft] * monA(j) for (i, j) in enumerate(inds)]))
         end
+        shft += length(inds)
+        row_shft += length(inds) - 1
     end
     I = ideal(R, eqns)
     I = saturation(I, ideal(R, [prod(gens(R))]))
@@ -96,6 +100,40 @@ function cayley_indices(m::MixedCell, j::Int)
     end
     res = @inbounds vcat(m.loc_inds[j], [first(m.inds[j+1])])
     return sort(res)
+end
+
+function real_root_count_symbolic(m::MixedCellInds, A::Matrix{Int},
+                                  V::Matrix{QQFieldElem})
+    F = GF(2)
+    proj = n -> matrix(F, hcat(id_matrix(n-1), ones(Int, n-1)))
+    Λs = [proj(length(mi)) * matrix(F, transpose(A[:, mi])) for mi in m]
+    Λ = vcat(Λs...)
+
+    Vred = Matrix(echelon_form(matrix(QQ, V)[:, vcat(m...)]))
+    b = eltype(F)[]
+    col_ind = 1
+    row_ind = 1
+    for mi in m
+        bi = eltype(F)[]
+        Vi = Vred[row_ind:row_ind + length(mi) - 2, col_ind:col_ind + length(mi) - 1]
+        row_ind += length(mi) - 1
+        col_ind += length(mi)
+        for i in 1:length(mi)
+            sgn_nr = (-1)^(i-1) * det(matrix(QQ, Vi[:, 1:end .!= i]))
+            iszero(sgn_nr) && return 0
+            sgn_nr > 0 ? push!(bi, F(0)) : push!(bi, F(1))
+        end
+        append!(b, proj(length(mi)) * bi)
+    end
+
+    is_in_img, _ = can_solve_with_solution(Λ, b, side = :right)
+
+    if is_in_img
+        n = size(A, 1)
+        return 2^(n - rank(Λ))
+    else
+        return 0
+    end
 end
 
 # --- matrix --- #
