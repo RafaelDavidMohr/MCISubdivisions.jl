@@ -157,6 +157,10 @@ function Base.isless(a::DualNumber{<:Real}, b::DualNumber{<:Real})
     end
 end
 
+function eval_dual(a::DualNumber; einv = 100)
+    return a.r + (1 / einv) * a.eps
+end
+
 struct OrderDual
     x::DualNumber{Float64}
     xP::DualNumber{FPNum}
@@ -184,8 +188,9 @@ const LSIZE = 50000
 
 const DualVector{T} = Vector{DualNumber{T}} 
 
-function DualVector(r::Vector{<:Integer})
-    return [DualNumber(ri, rand(-LSIZE:LSIZE)) for ri in r]
+function DualVector(r::Vector{<:Integer},
+                    eps::Vector{<:Integer} = rand(-LSIZE:LSIZE, length(r)))
+    return [DualNumber(ri, epsi) for (ri, epsi) in zip(r, eps)] 
 end
 
 # --- Hyperplane --- #

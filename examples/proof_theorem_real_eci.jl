@@ -13,16 +13,14 @@ A, Vs = MCIS.get_eci_data(F);
 p0 = MCISubdivisions.DualVector([-80, -60, 48, -60, 30, -30, 120, 20, 30, -80, 30, 40, 30, -60, 0, -40, -15, -20, -45, 0, -20, -15, -135, -135, -60, -20, 20, 30, -20, -20, 20, 20, -40, 48, 120], [1285, -6809, 7188, 2665, 6580, 6907, -9404, -872, 6777, 7974, -8256, 1329, -6803, 2890, 4746, -4726, -3785, -5985, 1228, 8932, -172, -3948, 5724, 7137, 9295, -2413, -2300, -1832, 9136, -1467, -449, 199, 1730, -7095, -4259]);
 p1 = MCISubdivisions.DualVector([60, -45, -120, 30, -90, -20, -30, 0, 20, -60, 20, 75, 0, 45, -15, -75, -20, 60, 0, -135, 40, -75, -30, 40, 30, 0, 60, 80, -108, -40, 80, 48, -40, 75, 30], [-1941, -6439, 2755, -6325, -3946, -1700, 6778, 5553, 9307, 9790, 1198, -466, -6022, -8022, -5379, 4846, 650, 1396, 8711, -1324, 849, 4644, -9117, 9762, 4350, 4638, 6551, -2283, -9054, 2935, 9936, -545, 1990, 9999, -2229]);
 t_cross = MCIS.DualNumber(52//55, 45421//1375);
-q0 = MCIS.convert_to_dual_number_vector(p0);
-q1 = MCIS.convert_to_dual_number_vector(p1);
-pp = [(MCIS.one(MCIS.DualNumber{Int}) - t_cross) * x for x in q0] .+ [t_cross * x for x in q1];
+pp = [(MCIS.one(MCIS.DualNumber{Int}) - t_cross) * x for x in p0] .+ [t_cross * x for x in p1];
 peval = [MCIS.eval_dual(x, einv = 100000) for x in pp];
 p = Int.(round.(10000 * peval));
 p_target = MCIS.DualVector(p, zeros(Int, size(A, 2)));
 
 d = rand(-50000:50000, size(A, 2));
 p_start, ms = mixed_subdivision(A, Vs, d);
-p_start = MCIS.DualVector(p_start.eps, zeros(Int, size(A, 2)));
+p_start = MCIS.DualVector([pi.eps for pi in p_start], zeros(Int, size(A, 2)));
 ms_new = MCIS.deform_subdivision(A, Vs, ms, p_start, p_target);
 
 real_root_count(A, QQ.(Vs), ms_new)
