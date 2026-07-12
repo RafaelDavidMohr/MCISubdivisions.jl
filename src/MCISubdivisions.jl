@@ -92,11 +92,19 @@ end
 Compute the real root count of `A`, `V` and the mixed subdivision given by `ms`.
 This is defined to be the sum of the real root counts of the polynomial systems
 corresponding to the leading parts of `A` and `V` indicated by `ms`.
+
+If `method == :symbolic` then a symbolic method is used that does not rely on
+polynomial system solving.
 """
 function real_root_count(A::Matrix{Int}, V::Matrix{QQFieldElem},
-                         ms::Vector{MixedCellInds})
+                         ms::Vector{MixedCellInds};
+                         method = :symbolic)
 
-    return sum([real_root_count(m, A, V) for m in ms])
+    if method == :symbolic
+        return sum([real_root_count_symbolic(m, A, V) for m in ms])
+    else
+        return sum([real_root_count(m, A, V) for m in ms])
+    end
 end
 
 """

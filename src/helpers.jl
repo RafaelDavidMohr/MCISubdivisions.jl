@@ -74,6 +74,14 @@ function linear_span(m::MixedCellInds, A::Matrix{Int})
     return hcat([linear_span(A, S) for S in m]...)
 end
 
+function cayley_indices(m::MixedCell, j::Int)
+    if j == length(m)
+        return @inbounds m.loc_inds[j]
+    end
+    res = @inbounds vcat(m.loc_inds[j], [first(m.inds[j+1])])
+    return sort(res)
+end
+
 # naive computation using msolve
 function real_root_count(m::MixedCellInds, A::Matrix{Int}, V::Matrix{QQFieldElem})
     R, x = polynomial_ring(QQ, ["x$i" for i in 1:size(A,1)])
@@ -92,14 +100,6 @@ function real_root_count(m::MixedCellInds, A::Matrix{Int}, V::Matrix{QQFieldElem
     I = ideal(R, eqns)
     I = saturation(I, ideal(R, [prod(gens(R))]))
     return length(Oscar.real_solutions(I)[1])
-end
-
-function cayley_indices(m::MixedCell, j::Int)
-    if j == length(m)
-        return @inbounds m.loc_inds[j]
-    end
-    res = @inbounds vcat(m.loc_inds[j], [first(m.inds[j+1])])
-    return sort(res)
 end
 
 function real_root_count_symbolic(m::MixedCellInds, A::Matrix{Int},
