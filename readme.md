@@ -1,7 +1,8 @@
 # MCISubdivisions.jl
 
 A julia package to compute tropical data associated to so-called
-engineered complete intersections accompanying the paper TODO LINK.
+engineered complete intersections accompanying [this
+paper](http://arxiv.org/abs/2607.23622).
 
 # Installation
 
