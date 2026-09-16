@@ -468,7 +468,7 @@ function make_eci(steady_state_system)
     param_evals = rand(1:1000, ngens(P))
     V_qq = [f(param_evals...) for f in V]
     V_qq = rand(-100:100, size(A_red, 1), size(V_qq, 1)) * V_qq
-    return A_red, reduce_mod_rand_prime(V_qq)
+    return A_red, V_qq
 end
 
 function convert_to_dual_number_vector(p::DualVector)

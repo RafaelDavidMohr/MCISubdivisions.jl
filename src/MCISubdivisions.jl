@@ -74,9 +74,13 @@ function mixed_subdivision(A::Matrix{Int}, V::Matrix{C},
                            d::Vector{Int} = rand(-LSIZE:LSIZE, size(A, 2)),
                            d_start::Vector{Int} = rand(-LSIZE:LSIZE, size(A, 2))) where C
     
-    @assert C <: Int || C <: FqFieldElem "Only integer or finite field coefficients supported"
+    @assert C <: Int || C <: QQFieldElem || C <: FqFieldElem "Only integer, rational or finite field coefficients supported"
 
-    wd = starting_system(A, V, d, d_start)
+    # rational coefficients are reduced modulo a random prime, just like in the
+    # entry points taking polynomials
+    Vp = C <: QQFieldElem ? reduce_mod_rand_prime(V) : V
+
+    wd = starting_system(A, Vp, d, d_start)
 
     walk_homotopy!(wd)
 
