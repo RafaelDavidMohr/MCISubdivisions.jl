@@ -120,7 +120,7 @@ A, V = MCIS.eci_from_odebase("./odebase1.txt", "./odebase1_constraints.txt")
 tim = @elapsed mv = MCIS.mixed_volume(A, V)
 my_timings_and_results[1] = (tim, mv)
 
-vrc_timings_and_results[1] = timed_generic_root_count(min(TIMEOUT_FACTOR * tim, 60 * 5), A, V)
+vrc_timings_and_results[1] = timed_generic_root_count(max(TIMEOUT_FACTOR * tim, 60 * 5), A, V)
 
 # Gro+16
 include("./steady_state.jl")
@@ -128,28 +128,28 @@ A, V = MCIS.get_eci_data(target_system)
 tim = @elapsed mv = MCIS.mixed_volume(A, V)
 my_timings_and_results[2] = (tim, mv)
 
-vrc_timings_and_results[2] = timed_generic_root_count(min(TIMEOUT_FACTOR * tim, 60 * 5), A, V)
+vrc_timings_and_results[2] = timed_generic_root_count(max(TIMEOUT_FACTOR * tim, 60 * 5), A, V)
 
 # example 2
 A, V = MCIS.eci_from_odebase("./odebase2.txt", "./odebase2_constraints.txt")
 tim = @elapsed mv = MCIS.mixed_volume(A, V)
 my_timings_and_results[3] = (tim, mv)
 
-vrc_timings_and_results[3] = timed_generic_root_count(min(TIMEOUT_FACTOR * tim, 60 * 5), A, V)
+vrc_timings_and_results[3] = timed_generic_root_count(max(TIMEOUT_FACTOR * tim, 60 * 5), A, V)
 
 # example 3
 A, V = MCIS.eci_from_odebase("./odebase3.txt", "./odebase3_constraints.txt")
 tim = @elapsed mv = MCIS.mixed_volume(A, V)
 my_timings_and_results[4] = (tim, mv)
 
-vrc_timings_and_results[4] = timed_generic_root_count(min(TIMEOUT_FACTOR * tim, 60 * 5), A, V)
+vrc_timings_and_results[4] = timed_generic_root_count(max(TIMEOUT_FACTOR * tim, 60 * 5), A, V)
 
 # example 4
 A, V = MCIS.eci_from_odebase("./odebase4.txt", "./odebase4_constraints.txt")
 tim = @elapsed mv = MCIS.mixed_volume(A, V)
 my_timings_and_results[5] = (tim, mv)
 
-vrc_timings_and_results[5] = timed_generic_root_count(min(TIMEOUT_FACTOR * tim, 60 * 5), A, V)
+vrc_timings_and_results[5] = timed_generic_root_count(max(TIMEOUT_FACTOR * tim, 60 * 5), A, V)
 
 # k-site phosphorylation networks
 
@@ -161,7 +161,7 @@ eqns = specialize(F, target_parameters);
 tim = @elapsed mv = MCIS.mixed_volume(eqns)
 my_timings_and_results[6] = (tim, mv)
 
-vrc_timings_and_results[6] = timed_generic_root_count(min(TIMEOUT_FACTOR * tim, 60 * 5), quote
+vrc_timings_and_results[6] = timed_generic_root_count(max(TIMEOUT_FACTOR * tim, 60 * 5), quote
     C, M, L, _ = multisite_phosphorylation_matrices(7)
     AugmentedVerticalSystem(C, M, L)
 end)
@@ -174,7 +174,7 @@ eqns = specialize(F, target_parameters);
 tim = @elapsed mv = MCIS.mixed_volume(eqns)
 my_timings_and_results[7] = (tim, mv)
 
-vrc_timings_and_results[7] = timed_generic_root_count(min(TIMEOUT_FACTOR * tim, 60 * 5), quote
+vrc_timings_and_results[7] = timed_generic_root_count(max(TIMEOUT_FACTOR * tim, 60 * 5), quote
     C, M, L, _ = multisite_phosphorylation_matrices(9)
     AugmentedVerticalSystem(C, M, L)
 end)
@@ -187,7 +187,7 @@ eqns = specialize(F, target_parameters);
 tim = @elapsed mv = MCIS.mixed_volume(eqns)
 my_timings_and_results[8] = (tim, mv)
 
-vrc_timings_and_results[8] = timed_generic_root_count(min(TIMEOUT_FACTOR * tim, 60 * 5), quote
+vrc_timings_and_results[8] = timed_generic_root_count(max(TIMEOUT_FACTOR * tim, 60 * 5), quote
     C, M, L, _ = multisite_phosphorylation_matrices(11)
     AugmentedVerticalSystem(C, M, L)
 end)
@@ -200,7 +200,7 @@ eqns = specialize(F, target_parameters);
 tim = @elapsed mv = MCIS.mixed_volume(eqns)
 my_timings_and_results[9] = (tim, mv)
 
-vrc_timings_and_results[9] = timed_generic_root_count(min(TIMEOUT_FACTOR * tim, 60 * 5), quote
+vrc_timings_and_results[9] = timed_generic_root_count(max(TIMEOUT_FACTOR * tim, 60 * 5), quote
     C, M, L, _ = multisite_phosphorylation_matrices(13)
     AugmentedVerticalSystem(C, M, L)
 end)
